@@ -1,0 +1,1528 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Drawer Bin Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: workbench — controls rail beside a cutting-mat canvas; stacks on phones (canvas first). */
+:root{
+  --bg:#e9ede9; --panel:#f8faf8; --ink:#16201b; --muted:#56655d; --line:#cdd7d1;
+  --mat:#2c5a47; --mat-minor:rgba(255,255,255,.10); --mat-major:rgba(255,255,255,.24);
+  --bin:#f2eee2; --bin-edge:#a59c84; --pocket:#e2dccb; --bin-ink:#2a2a22;
+  --sel:#f4a300; --accent:#1d6a50; --accent-ink:#ffffff; --warn:#a4400f; --warn-bg:#fbe9dc; --clash:#ff7043; --btn2:#2e3b35; --btn2-ink:#eef3f0;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111613; --panel:#19201c; --ink:#e3eae6; --muted:#97a69e; --line:#2c3832;
+  --mat:#1d3c30; --mat-minor:rgba(255,255,255,.06); --mat-major:rgba(255,255,255,.15);
+  --bin:#dcd6c5; --bin-edge:#8f8770; --pocket:#c5bea9; --bin-ink:#22221c;
+  --sel:#ffb92e; --accent:#4cb28a; --accent-ink:#0d1a14; --warn:#ffab7a; --warn-bg:#3a2216; --clash:#ff8a5c; --btn2:#2c3832; --btn2-ink:#e3eae6;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111613; --panel:#19201c; --ink:#e3eae6; --muted:#97a69e; --line:#2c3832;
+  --mat:#1d3c30; --mat-minor:rgba(255,255,255,.06); --mat-major:rgba(255,255,255,.15);
+  --bin:#dcd6c5; --bin-edge:#8f8770; --pocket:#c5bea9; --bin-ink:#22221c;
+  --sel:#ffb92e; --accent:#4cb28a; --accent-ink:#0d1a14; --warn:#ffab7a; --warn-bg:#3a2216; --clash:#ff8a5c; --btn2:#2c3832; --btn2-ink:#e3eae6;
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 32px}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:16px 14px;max-width:1240px;margin:0 auto}
+h1{font-family:var(--display);font-weight:700;font-size:28px;letter-spacing:.01em;margin:0;line-height:1;text-transform:uppercase}
+h1 small{display:block;font-family:var(--body);font-weight:400;font-size:13px;color:var(--muted);text-transform:none;letter-spacing:0;margin-top:4px}
+.app{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;max-width:1240px;margin:0 auto;align-items:start}
+@media (max-width:820px){.app{grid-template-columns:minmax(0,1fr)}.stage{order:-1}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 16px 16px;display:flex;flex-direction:column}
+.panel section{padding-block:12px;border-bottom:1px solid var(--line);display:grid;gap:8px}
+.panel section:last-child{border-bottom:0}
+.eyebrow{font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+label.f{display:grid;gap:3px;font-size:12px;color:var(--muted);min-width:0}
+.inp{display:flex;align-items:center;border:1px solid var(--line);border-radius:6px;background:var(--bg);overflow:hidden}
+.inp:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
+.inp input{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);font-family:var(--mono);font-size:14px;padding:7px 4px 7px 8px;outline:none;font-variant-numeric:tabular-nums}
+.inp input:focus-visible{outline:none}
+.inp span{font-family:var(--mono);font-size:11px;color:var(--muted);padding-right:8px}
+button{font:inherit;font-weight:500;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 12px;min-height:36px}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.primary:hover:not(:disabled){filter:brightness(1.07)}
+button.danger-armed{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+.top-actions{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap}
+.saves{position:relative;display:flex}
+button.dark{background:var(--btn2);color:var(--btn2-ink);border-color:var(--btn2)}
+button.dark:hover:not(:disabled){filter:brightness(1.18);border-color:var(--btn2)}
+.save-btn{display:flex;align-items:center;gap:8px;padding:6px 12px 6px 14px;max-width:280px}
+.save-btn .lbl{font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:.08em;text-transform:uppercase;opacity:.7}
+#saveName{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.save-btn svg{flex:none;opacity:.8}
+.menu{position:absolute;right:0;top:calc(100% + 6px);width:min(340px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 14px 34px rgba(0,0,0,.22);padding:8px;z-index:30;display:grid;gap:2px}
+@media (max-width:640px){.menu{left:0;right:auto}}
+.menu-h{margin:4px 8px 6px;font-family:var(--display);font-weight:600;font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.save-list{display:grid;gap:2px;max-height:264px;overflow:auto}
+.si{display:grid;gap:1px;text-align:left;border:1px solid transparent;background:transparent;padding:7px 32px 7px 10px;min-height:0;border-radius:6px;position:relative;width:100%;color:var(--ink)}
+.si:hover{background:var(--bg)}
+.si[aria-current="true"]{background:var(--bg);border-color:var(--line)}
+.si[aria-current="true"]::after{content:"";position:absolute;right:13px;top:50%;width:5px;height:10px;border:solid var(--accent);border-width:0 2px 2px 0;transform:translateY(-65%) rotate(45deg)}
+.si-n{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.si-m{font-size:12px;color:var(--muted)}
+.mi{display:block;width:100%;text-align:left;border:0;background:transparent;padding:7px 10px;min-height:0;border-radius:6px;color:var(--ink)}
+.mi:hover:not(:disabled){background:var(--bg)}
+.menu-sep{height:1px;background:var(--line);margin:6px 4px}
+.rename-row{display:flex;gap:6px;padding:4px}
+.rename-row .inp{flex:1;min-width:0}
+#renameInp{font-family:var(--body)}
+.menu-note{font-size:12px;color:var(--muted);margin:6px 8px 4px;line-height:1.4}
+.export{font-family:var(--display);font-size:18px;letter-spacing:.06em;text-transform:uppercase;padding:8px 18px}
+.stage{display:grid;gap:10px;min-width:0}
+.tabs{display:flex;gap:4px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;padding:2px;background:var(--panel)}
+.seg button{border:0;min-height:30px;padding:4px 14px;background:transparent;font-family:var(--display);font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.view{position:relative;background:var(--mat);border-radius:10px;padding:14px 14px 30px;display:flex;justify-content:center}
+.view svg{display:block;width:100%;max-height:66vh;touch-action:none;user-select:none;-webkit-user-select:none}
+.front{position:absolute;left:0;right:0;bottom:7px;text-align:center;font-family:var(--display);font-weight:600;letter-spacing:.3em;font-size:12px;color:rgba(255,255,255,.65)}
+#view3d{height:min(66vh,560px);padding:0;overflow:hidden;cursor:grab;touch-action:none}
+#view3d canvas{display:block;width:100%;height:100%}
+#view3d .msg{position:absolute;inset:0;display:grid;place-items:center;color:rgba(255,255,255,.8)}
+.hint3d{position:absolute;left:12px;bottom:8px;font-size:12px;color:rgba(255,255,255,.6);pointer-events:none}
+.tool{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-wrap:wrap;gap:12px 18px;align-items:flex-end}
+.tool .who{display:grid;gap:2px;min-width:200px;flex:1 1 200px}
+.tool .who b{font-family:var(--display);font-size:20px;font-weight:700;letter-spacing:.02em;line-height:1.2;padding:2px 0}
+.tool .who span{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.name-inp{font-family:var(--display);font-size:20px;font-weight:700;letter-spacing:.02em;line-height:1.2;color:var(--ink);background:transparent;
+  border:1px solid transparent;border-bottom:1px dashed var(--muted);border-radius:4px 4px 0 0;padding:2px 26px 2px 5px;margin-left:-5px;width:100%;max-width:260px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2388968f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 6px center}
+.name-inp::placeholder{color:var(--ink);opacity:1}
+.name-inp:hover{border-color:var(--line)}
+.name-inp:focus{outline:none;border:1px solid var(--accent);border-radius:4px;background-color:var(--bg)}
+.name-inp:focus::placeholder{color:var(--muted)}
+label.f:has(input:disabled){opacity:.45}
+input:disabled{cursor:not-allowed}
+.status{flex-basis:100%;margin:0;font-size:13px;color:var(--muted)}
+.status.bad{color:var(--warn);background:var(--warn-bg);padding:8px 10px;border-radius:6px}
+.status.good{color:var(--accent)}
+.seg.full{display:flex}
+.seg.full button{flex:1;padding-inline:6px;white-space:nowrap;letter-spacing:.04em}
+.grp{display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap}
+.grp .inp{width:122px}
+.grp .inp.n{width:80px}
+.grp .inp input{padding-right:8px}
+.sizes{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.sizes li{display:flex;justify-content:space-between;gap:8px}
+.sizes li b{font-weight:500;color:var(--muted)}
+.total{font-size:13px}
+.warn{background:var(--warn-bg);color:var(--warn);border-radius:6px;padding:8px 10px;font-size:13px}
+.note{font-size:12px;color:var(--muted);margin:0}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:13px;max-width:calc(100vw - 32px);z-index:20}
+.lbl-n{font-family:var(--display);font-weight:700}
+.lbl-d{font-family:var(--mono)}
+@media (prefers-reduced-motion:no-preference){button{transition:border-color .12s,filter .12s}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Drawer Bin Maker<small>Plan bins for a drawer, then export every bin in one 3MF file.</small></h1>
+  <div class="top-actions">
+    <div class="saves">
+      <button class="dark save-btn" id="saveBtn" aria-haspopup="true" aria-expanded="false" aria-controls="saveMenu">
+        <span class="lbl">Layout</span><span id="saveName">My drawer</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="menu" id="saveMenu" hidden>
+        <p class="menu-h">Your layouts</p>
+        <div class="save-list" id="saveList"></div>
+        <div class="rename-row" id="renameRow" hidden>
+          <div class="inp"><input id="renameInp" type="text" maxlength="40" autocomplete="off" aria-label="Layout name"></div>
+          <button class="dark" id="renameOk">Save name</button>
+        </div>
+        <div class="menu-sep"></div>
+        <button class="mi" id="newLayout">New layout</button>
+        <button class="mi" id="dupLayout">Duplicate this layout</button>
+        <button class="mi" id="renLayout">Rename this layout</button>
+        <button class="mi" id="delLayout">Delete this layout</button>
+        <div class="menu-sep"></div>
+        <button class="mi" id="dlOne">Download this layout</button>
+        <button class="mi" id="dlAll">Download all layouts</button>
+        <button class="mi" id="upLayout">Upload a layout file…</button>
+        <input type="file" id="upFile" accept=".json,application/json" hidden>
+        <p class="menu-note">Layouts save automatically in this browser. Download a file to keep a backup, or to move layouts to another device.</p>
+      </div>
+    </div>
+    <button class="primary export" id="exportBtn">Export 3MF</button>
+  </div>
+</header>
+
+<div class="app">
+  <aside class="panel">
+    <section>
+      <div class="seg full" role="group" aria-label="View">
+        <button id="tab2d" aria-pressed="true">Layout</button>
+        <button id="tab3d" aria-pressed="false">3D</button>
+      </div>
+    </section>
+    <section>
+      <p class="eyebrow">Editing mode</p>
+      <div class="seg full" role="group" aria-label="Editing mode">
+        <button id="modeSplit" aria-pressed="true">Split lines</button>
+        <button id="modeFree" aria-pressed="false">Free layout</button>
+      </div>
+      <p class="note" id="modeNote"></p>
+      <button id="fillBtn" hidden>Fill empty space</button>
+    </section>
+    <section>
+      <p class="eyebrow">Drawer (inside)</p>
+      <div class="fields">
+        <label class="f">Width (left–right)<div class="inp"><input id="pW" type="number" inputmode="decimal" step="1" min="20"><span>mm</span></div></label>
+        <label class="f">Depth (front–back)<div class="inp"><input id="pD" type="number" inputmode="decimal" step="1" min="20"><span>mm</span></div></label>
+        <label class="f">Height<div class="inp"><input id="pH" type="number" inputmode="decimal" step="1" min="5"><span>mm</span></div></label>
+      </div>
+    </section>
+    <section>
+      <p class="eyebrow">Bins</p>
+      <div class="fields">
+        <label class="f">Bin height<div class="inp"><input id="pbh" type="number" inputmode="decimal" step="1" min="3"><span>mm</span></div></label>
+        <label class="f">Wall thickness<div class="inp"><input id="pwall" type="number" inputmode="decimal" step="0.1" min="0.4"><span>mm</span></div></label>
+        <label class="f">Floor thickness<div class="inp"><input id="pfloor" type="number" inputmode="decimal" step="0.1" min="0.4"><span>mm</span></div></label>
+        <label class="f">Clearance<div class="inp"><input id="pclr" type="number" inputmode="decimal" step="0.1" min="0"><span>mm</span></div></label>
+        <label class="f">Corner radius<div class="inp"><input id="prad" type="number" inputmode="decimal" step="0.5" min="0"><span>mm</span></div></label>
+      </div>
+      <p class="note">Clearance is the total gap taken off each bin's width and depth so it drops in easily.</p>
+      <div id="warnings" class="warn" hidden></div>
+    </section>
+    <section>
+      <button id="undoBtn" disabled>Undo</button>
+      <button id="resetBtn">Reset layout</button>
+    </section>
+    <section>
+      <p class="eyebrow">Parts list</p>
+      <div class="total" id="total"></div>
+      <ul class="sizes" id="sizes"></ul>
+    </section>
+  </aside>
+
+  <div class="stage">
+    <div class="view" id="view2d"><svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg><div class="front">FRONT</div></div>
+    <div class="view" id="view3d" hidden><div class="msg" id="msg3d">Loading 3D view…</div><div class="hint3d">Drag to rotate · scroll or pinch to zoom</div></div>
+    <div class="tool" id="tool">
+      <div class="who">
+        <input id="selName" class="name-inp" type="text" maxlength="40" autocomplete="off" spellcheck="false" aria-label="Bin name" title="Click to rename this bin">
+        <b id="multiName" hidden></b>
+        <span id="selDims"></span><span id="selInner"></span>
+      </div>
+      <div class="grp">
+        <label class="f">Width<div class="inp"><input id="sW" type="number" inputmode="decimal" step="0.1"><span>mm</span></div></label>
+        <label class="f">Depth<div class="inp"><input id="sD" type="number" inputmode="decimal" step="0.1"><span>mm</span></div></label>
+      </div>
+      <div class="grp">
+        <label class="f">Split into<div class="inp n"><input id="sN" type="number" inputmode="numeric" step="1" min="2" max="20" value="2"></div></label>
+        <button id="splitX">Split Vertical</button>
+        <button id="splitY">Split Horizontal</button>
+      </div>
+      <div class="grp">
+        <button id="mergeBtn">Merge selected</button>
+        <button id="matchW">Match width</button>
+        <button id="matchD">Match depth</button>
+        <button id="deleteBtn" hidden>Delete</button>
+      </div>
+      <p class="status" id="status" aria-live="polite"></p>
+    </div>
+    <p class="note" id="dlNote">Click a bin to select it. Shift-click to select more. Drag the lines between bins to resize.</p>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+"use strict";
+const KEY_OLD = "drawer-bin-maker-v1", KEY = "drawer-bin-maker-saves-v1";
+const MIN = 10; // smallest bin cell, mm
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const fmt = v => String(+(+v).toFixed(2));
+// one decimal always (150.0), two only when needed (149.75)
+const fmt1 = v => { const r = Math.round(v * 100) / 100; return Math.abs(r * 10 - Math.round(r * 10)) < 1e-6 ? r.toFixed(1) : r.toFixed(2); };
+const EPS = 0.01;
+const xesc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]));
+const andList = a => a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
+const plural = (n, one, many) => n === 1 ? one : many;
+
+// ---------- state ----------
+// S.mode "split": bins come from S.tree (split lines, always fills the drawer)
+// S.mode "free":  bins are S.rects [{id,name,x,y,w,h}], gaps allowed
+// sel: selected bin ids, in the order picked (sel[0] is the main one)
+let S, sel = [], history = [];
+function defaults() {
+  let nid = 1;
+  const L = () => ({ id: nid++ });
+  const P = (dir, kids) => ({ id: nid++, dir, kids: kids.map(([w, n]) => ({ w, n })) });
+  const tree = P("y", [
+    [160, P("x", [[100, L()], [100, L()], [100, L()]])],
+    [240, P("x", [[200, L()], [100, P("y", [[120, L()], [120, L()]])]])]
+  ]);
+  return { mode: "split", p: { W: 300, D: 400, H: 60, bh: 50, wall: 1.2, floor: 1.2, clr: 0.5, rad: 3 }, tree, nid };
+}
+// ---------- saved layouts storage ----------
+// store = { current: id, saves: { id: { name, state, updated } } }
+const num = v => typeof v === "number" && isFinite(v);
+function validState(s) {
+  if (!s || typeof s !== "object" || !s.p || typeof s.p !== "object") return false;
+  const p = s.p;
+  if (!["W", "D", "H", "bh", "wall", "floor", "clr", "rad"].every(k => num(p[k]) && p[k] >= 0) || p.W < 20 || p.D < 20) return false;
+  const nm = n => n == null || typeof n === "string";
+  if (s.mode === "free") return Array.isArray(s.rects) && s.rects.every(r => r && num(r.id) && num(r.x) && num(r.y) && num(r.w) && num(r.h) && r.w > 0 && r.h > 0 && nm(r.name));
+  if (s.mode != null && s.mode !== "split") return false;
+  const ids = new Set();
+  const vt = (n, depth) => {
+    if (!n || typeof n !== "object" || !num(n.id) || depth > 60 || !nm(n.name)) return false;
+    if (!n.dir) { if (ids.has(n.id)) return false; ids.add(n.id); return true; }
+    return (n.dir === "x" || n.dir === "y") && Array.isArray(n.kids) && n.kids.length > 0 && n.kids.every(k => k && num(k.w) && k.w > 0 && vt(k.n, depth + 1));
+  };
+  return vt(s.tree, 0);
+}
+function normalize(s) {
+  s = JSON.parse(JSON.stringify(s));
+  if (!s.mode) s.mode = "split";
+  let max = 0;
+  if (s.mode === "free") { delete s.tree; s.rects.forEach(r => { max = Math.max(max, r.id); if (r.name) r.name = r.name.slice(0, 40); }); }
+  else { delete s.rects; (function walk(n) { max = Math.max(max, n.id); if (n.name) n.name = n.name.slice(0, 40); if (n.dir) n.kids.forEach(k => walk(k.n)); })(s.tree); }
+  s.nid = Math.max(num(s.nid) ? s.nid : 0, max + 1);
+  return s;
+}
+const newId = () => "L" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+function loadStore() {
+  try {
+    const st = JSON.parse(localStorage.getItem(KEY));
+    if (st && st.saves && typeof st.saves === "object") {
+      for (const id of Object.keys(st.saves)) {
+        const v = st.saves[id];
+        if (!v || !validState(v.state)) delete st.saves[id];
+        else { v.state = normalize(v.state); v.name = String(v.name || "Untitled").slice(0, 40); if (!num(v.updated)) v.updated = Date.now(); }
+      }
+      const ids = Object.keys(st.saves);
+      if (ids.length) { if (!st.saves[st.current]) st.current = ids[0]; return st; }
+    }
+  } catch (e) {}
+  let first = null;
+  try { const s = JSON.parse(localStorage.getItem(KEY_OLD)); if (validState(s)) first = normalize(s); } catch (e) {}
+  const id = newId();
+  return { current: id, saves: { [id]: { name: "My drawer", state: first || defaults(), updated: Date.now() } } };
+}
+let store = loadStore();
+function saveStore() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
+function save() { const cur = store.saves[store.current]; cur.state = S; cur.updated = Date.now(); saveStore(); }
+function pushHist(str) { history.push(str); if (history.length > 80) history.shift(); $("undoBtn").disabled = false; }
+function snap() { pushHist(JSON.stringify(S)); }
+const free = () => S.mode === "free";
+function exists(id) { return free() ? S.rects.some(r => r.id === id) : !!findPath(S.tree, id); }
+function cleanSel() {
+  sel = sel.filter(exists);
+  if (!sel.length && !free()) sel = [firstLeaf(S.tree).id];
+}
+function undo() {
+  if (!history.length) return;
+  S = JSON.parse(history.pop()); $("undoBtn").disabled = !history.length;
+  cleanSel(); syncParams(); update();
+}
+S = store.saves[store.current].state;
+
+// ---------- tree helpers (split mode) ----------
+const isLeaf = n => !n.dir;
+function firstLeaf(n) { return isLeaf(n) ? n : firstLeaf(n.kids[0].n); }
+function findPath(n, id, path = []) {
+  if (n.id === id) return path;
+  if (isLeaf(n)) return null;
+  for (let i = 0; i < n.kids.length; i++) {
+    const r = findPath(n.kids[i].n, id, path.concat([{ node: n, i }]));
+    if (r) return r;
+  }
+  return null;
+}
+function nodeById(n, id) {
+  if (n.id === id) return n;
+  if (isLeaf(n)) return null;
+  for (const k of n.kids) { const r = nodeById(k.n, id); if (r) return r; }
+  return null;
+}
+// the object that stores a bin's name, in either mode
+function binNode(id) { return free() ? S.rects.find(r => r.id === id) : nodeById(S.tree, id); }
+
+// layout → leaves (bin cells), dividers, node rects (mm, y=0 at front)
+function layout() {
+  if (free()) return { leaves: S.rects.map(r => ({ id: r.id, name: r.name || "", x: r.x, y: r.y, w: r.w, h: r.h })), divs: [], rects: {} };
+  const leaves = [], divs = [], rects = {};
+  (function walk(n, x, y, w, h) {
+    rects[n.id] = { x, y, w, h };
+    if (isLeaf(n)) { leaves.push({ id: n.id, name: n.name || "", x, y, w, h }); return; }
+    const L = n.dir === "x" ? w : h, sum = n.kids.reduce((a, k) => a + k.w, 0);
+    let pos = 0;
+    n.kids.forEach((k, i) => {
+      const len = k.w / sum * L;
+      if (n.dir === "x") walk(k.n, x + pos, y, len, h); else walk(k.n, x, y + pos, w, len);
+      if (i < n.kids.length - 1) {
+        const nextLen = n.kids[i + 1].w / sum * L;
+        divs.push({ split: n.id, i, dir: n.dir, at: (n.dir === "x" ? x : y) + pos + len,
+          a: (n.dir === "x" ? x : y) + pos, b: (n.dir === "x" ? x : y) + pos + len + nextLen,
+          c0: n.dir === "x" ? y : x, c1: n.dir === "x" ? y + h : x + w });
+      }
+      pos += len;
+    });
+  })(S.tree, 0, 0, S.p.W, S.p.D);
+  return { leaves, divs, rects };
+}
+function kidSizes(node, rects) {
+  const r = rects[node.id], L = node.dir === "x" ? r.w : r.h, sum = node.kids.reduce((a, k) => a + k.w, 0);
+  return node.kids.map(k => k.w / sum * L);
+}
+function nameOf(id) {
+  const i = L.leaves.findIndex(l => l.id === id);
+  return i < 0 ? "" : (L.leaves[i].name || "Bin " + (i + 1));
+}
+
+// Rebuild a split tree from rectangles that tile a region (merging, and switching back to split mode).
+function buildTree(rects, x, y, w, h, pref, ctr) {
+  if (!rects.length) return null;
+  if (rects.length === 1) { const n = { id: rects[0].id }; if (rects[0].name) n.name = rects[0].name; return n; }
+  for (const dir of [pref, pref === "x" ? "y" : "x"]) {
+    const lo = dir === "x" ? x : y, hi = dir === "x" ? x + w : y + h;
+    const a = r => dir === "x" ? r.x : r.y, len = r => dir === "x" ? r.w : r.h;
+    const cuts = [...new Set(rects.map(r => +(a(r) + len(r)).toFixed(3)))]
+      .filter(c => c > lo + EPS && c < hi - EPS)
+      .filter(c => rects.every(r => a(r) + len(r) <= c + EPS || a(r) >= c - EPS))
+      .sort((p, q) => p - q);
+    if (!cuts.length) continue;
+    const bounds = [lo, ...cuts, hi], kids = [];
+    for (let k = 0; k < bounds.length - 1; k++) {
+      const s = bounds[k], e = bounds[k + 1];
+      const sub = rects.filter(r => a(r) >= s - EPS && a(r) + len(r) <= e + EPS);
+      const child = dir === "x" ? buildTree(sub, s, y, e - s, h, "y", ctr) : buildTree(sub, x, s, w, e - s, "x", ctr);
+      if (!child) return null;
+      kids.push({ w: e - s, n: child });
+    }
+    return { id: ctr.n++, dir, kids };
+  }
+  return null;
+}
+
+// ---------- free-mode geometry ----------
+const ov = (a0, a1, b0, b1) => Math.min(a1, b1) - Math.max(a0, b0) > EPS;
+const overlaps = (a, b) => ov(a.x, a.x + a.w, b.x, b.x + b.w) && ov(a.y, a.y + a.h, b.y, b.y + b.h);
+const inBounds = r => r.x >= -EPS && r.y >= -EPS && r.x + r.w <= S.p.W + EPS && r.y + r.h <= S.p.D + EPS;
+function fits(r, ignore) { return inBounds(r) && S.rects.every(o => ignore.includes(o.id) || !overlaps(r, o)); }
+const emptyArea = () => S.p.W * S.p.D - (free() ? S.rects.reduce((s, r) => s + r.w * r.h, 0) : S.p.W * S.p.D);
+
+let scaleNow = 1; // screen px per mm, set on each render
+function edgesOf(axis, ignore) {
+  const out = [0, axis === "x" ? S.p.W : S.p.D];
+  S.rects.forEach(r => { if (!ignore.includes(r.id)) out.push(axis === "x" ? r.x : r.y, axis === "x" ? r.x + r.w : r.y + r.h); });
+  return out;
+}
+// snap a single coordinate: to a nearby bin edge / wall, else the 1 mm grid
+function snapOne(v, cands) {
+  const thr = 6 / scaleNow; let best = null;
+  cands.forEach(c => { const d = Math.abs(c - v); if (d <= thr && (!best || d < best.d)) best = { c, d }; });
+  return best ? best.c : Math.round(v);
+}
+// snap a span [lo, hi]: returns the shift that lines either side up with an edge, else the grid
+function snapSpan(lo, hi, cands) {
+  const thr = 6 / scaleNow; let best = null;
+  for (const c of cands) for (const v of [lo, hi]) { const d = c - v; if (Math.abs(d) <= thr && (best === null || Math.abs(d) < Math.abs(best))) best = d; }
+  return best !== null ? best : Math.round(lo) - lo;
+}
+// how far a group of rects can travel along an axis before touching a wall or another bin
+function travel(rs, others, axis, dist) {
+  const [p, s, q, t] = axis === "x" ? ["x", "w", "y", "h"] : ["y", "h", "x", "w"], lim = axis === "x" ? S.p.W : S.p.D, sign = Math.sign(dist);
+  for (const m of rs) {
+    dist = sign > 0 ? Math.min(dist, lim - (m[p] + m[s])) : Math.max(dist, -m[p]);
+    for (const o of others) {
+      if (!ov(o[q], o[q] + o[t], m[q], m[q] + m[t])) continue;
+      if (sign > 0 && o[p] >= m[p] + m[s] - EPS) dist = Math.min(dist, o[p] - (m[p] + m[s]));
+      if (sign < 0 && o[p] + o[s] <= m[p] + EPS) dist = Math.max(dist, o[p] + o[s] - m[p]);
+    }
+  }
+  return sign > 0 ? Math.max(0, dist) : sign < 0 ? Math.min(0, dist) : 0;
+}
+// move a group by (dx, dy) from its original spot, sliding along anything in the way
+function moveGroup(orig, ids, dx, dy, doSnap) {
+  if (doSnap) {
+    dx += snapSpan(Math.min(...orig.map(r => r.x)) + dx, Math.max(...orig.map(r => r.x + r.w)) + dx, edgesOf("x", ids));
+    dy += snapSpan(Math.min(...orig.map(r => r.y)) + dy, Math.max(...orig.map(r => r.y + r.h)) + dy, edgesOf("y", ids));
+  }
+  const others = S.rects.filter(r => !ids.includes(r.id));
+  const shift = (rs, a, b) => rs.map(r => Object.assign({}, r, { x: r.x + a, y: r.y + b }));
+  const ax = travel(orig, others, "x", dx), ay = travel(shift(orig, ax, 0), others, "y", dy);
+  const by = travel(orig, others, "y", dy), bx = travel(shift(orig, 0, by), others, "x", dx);
+  const [fx, fy] = (dx - ax) ** 2 + (dy - ay) ** 2 <= (dx - bx) ** 2 + (dy - by) ** 2 ? [ax, ay] : [bx, by];
+  orig.forEach(o => { const r = S.rects.find(q => q.id === o.id); r.x = o.x + fx; r.y = o.y + fy; });
+  return fx !== 0 || fy !== 0;
+}
+// set a free bin's width/depth, growing right/back first, then left/front if blocked
+function fitFree(id, axis, want) {
+  const r = S.rects.find(o => o.id === id), [pk, sk, qk, tk] = axis === "x" ? ["x", "w", "y", "h"] : ["y", "h", "x", "w"];
+  want = Math.max(MIN, want);
+  let hi = axis === "x" ? S.p.W : S.p.D, lo = 0;
+  S.rects.forEach(o => {
+    if (o.id === id || !ov(o[qk], o[qk] + o[tk], r[qk], r[qk] + r[tk])) return;
+    if (o[pk] >= r[pk] + r[sk] - EPS) hi = Math.min(hi, o[pk]);
+    if (o[pk] + o[sk] <= r[pk] + EPS) lo = Math.max(lo, o[pk] + o[sk]);
+  });
+  const old = r[sk];
+  if (r[pk] + want <= hi + EPS) r[sk] = want;
+  else { const start = Math.max(lo, hi - want); r[pk] = start; r[sk] = hi - start; }
+  if (Math.abs(r[sk] - want) >= 0.05) return "clamped";
+  return Math.abs(old - want) < 1e-6 ? "same" : "ok";
+}
+
+// ---------- merge check ----------
+// Returns { ok, why, bb, inside, partial, ... } for the current selection
+function mergeCheck() {
+  if (sel.length < 2) return null;
+  const picked = L.leaves.filter(l => sel.includes(l.id));
+  const bb = { x: Math.min(...picked.map(l => l.x)), y: Math.min(...picked.map(l => l.y)),
+    x1: Math.max(...picked.map(l => l.x + l.w)), y1: Math.max(...picked.map(l => l.y + l.h)) };
+  const inside = [], partial = [];
+  L.leaves.forEach(l => {
+    if (sel.includes(l.id)) return;
+    const ox = Math.min(l.x + l.w, bb.x1) - Math.max(l.x, bb.x), oy = Math.min(l.y + l.h, bb.y1) - Math.max(l.y, bb.y);
+    if (ox <= EPS || oy <= EPS) return;
+    const full = l.x >= bb.x - EPS && l.x + l.w <= bb.x1 + EPS && l.y >= bb.y - EPS && l.y + l.h <= bb.y1 + EPS;
+    (full ? inside : partial).push({ l, r: { x: Math.max(l.x, bb.x), y: Math.max(l.y, bb.y), w: ox, h: oy } });
+  });
+  const res = { ok: false, bb, inside, partial, w: bb.x1 - bb.x - S.p.clr, d: bb.y1 - bb.y - S.p.clr };
+  const mm = v => fmt1(v - S.p.clr);
+
+  if (free()) {
+    if (!inside.length && !partial.length) {
+      const area = picked.reduce((s, l) => s + l.w * l.h, 0);
+      return Object.assign(res, { ok: true, fillsGap: (bb.x1 - bb.x) * (bb.y1 - bb.y) - area > 1 });
+    }
+    const names = inside.concat(partial).map(o => nameOf(o.l.id)), them = names.length > 1 ? "them" : "it";
+    res.why = `${andList(names)} ${names.length > 1 ? "are" : "is"} inside the dashed outline a merged bin would cover. ` +
+      (partial.length ? `Move ${them} out of the way, or pick different bins.` : `Shift-click ${them} too, or move ${them} out of the way.`);
+    return res;
+  }
+
+  if (!inside.length && !partial.length) {
+    const rects = L.leaves.filter(l => !sel.includes(l.id)).map(l => ({ id: l.id, name: l.name, x: l.x, y: l.y, w: l.w, h: l.h }));
+    const keep = picked.map(l => l.name).find(n => n) || "";
+    rects.push({ id: sel[0], name: keep, x: bb.x, y: bb.y, w: bb.x1 - bb.x, h: bb.y1 - bb.y });
+    const ctr = { n: S.nid };
+    const tree = buildTree(rects, 0, 0, S.p.W, S.p.D, S.tree.dir || "y", ctr);
+    if (!tree) { res.why = "These bins form a rectangle, but merging them would leave a layout that can't be made from straight cuts. Try merging them in two steps."; return res; }
+    return Object.assign(res, { ok: true, tree, nid: ctr.n });
+  }
+  if (!partial.length) {
+    const names = inside.map(o => nameOf(o.l.id));
+    res.why = `${andList(names)} ${names.length > 1 ? "are" : "is"} in the way. Shift-click ${names.length > 1 ? "them" : "it"} too (dashed outline) so the selection makes a solid rectangle.`;
+    return res;
+  }
+  const byX = [...picked].sort((p, q) => p.x - q.x), byY = [...picked].sort((p, q) => p.y - q.y);
+  const yOverlap = Math.min(...picked.map(l => l.y + l.h)) - Math.max(...picked.map(l => l.y)) > EPS;
+  const xOverlap = Math.min(...picked.map(l => l.x + l.w)) - Math.max(...picked.map(l => l.x)) > EPS;
+  const sideBySide = yOverlap && byX.every((l, k) => k === 0 || byX[k - 1].x + byX[k - 1].w <= l.x + EPS);
+  const stacked = xOverlap && byY.every((l, k) => k === 0 || byY[k - 1].y + byY[k - 1].h <= l.y + EPS);
+  const spread = vals => Math.max(...vals) - Math.min(...vals);
+  const listSizes = (key, word) => andList(picked.slice(0, 4).map(l => `${nameOf(l.id)} is ${mm(l[key])} mm ${word}`)) + (picked.length > 4 ? ", …" : "");
+  if (sideBySide) {
+    res.why = spread(picked.map(l => l.h)) > 0.05
+      ? `Bins side by side need the same depth to merge. ${listSizes("h", "deep")}. Use Match depth first.`
+      : "These bins are the same depth but their front edges don't line up. Drag the lines so they line up, then merge.";
+  } else if (stacked) {
+    res.why = spread(picked.map(l => l.w)) > 0.05
+      ? `Bins front to back need the same width to merge. ${listSizes("w", "wide")}. Use Match width first.`
+      : "These bins are the same width but their left edges don't line up. Drag the lines so they line up, then merge.";
+  } else {
+    res.why = "The selected bins don't make a solid rectangle. The dashed outline shows the shape a merge needs, and the striped parts belong to other bins.";
+  }
+  return res;
+}
+let check = null;
+
+// ---------- bin geometry ----------
+function binOf(leaf) {
+  const p = S.p, w = leaf.w - p.clr, d = leaf.h - p.clr;
+  const r = Math.max(0, Math.min(p.rad, w / 2 - 0.05, d / 2 - 0.05));
+  return { w, d, h: p.bh, r, x: leaf.x + p.clr / 2, y: leaf.y + p.clr / 2,
+    ok: w > 2 * p.wall + 1 && d > 2 * p.wall + 1 && p.bh > p.floor + 0.5 };
+}
+function innerRadius(b) {
+  const t = S.p.wall;
+  if (b.r <= 0) return 0;
+  const lim = Math.min(b.w - 2 * t, b.d - 2 * t) / 2 - 0.05;
+  return Math.max(0, Math.min(Math.max(b.r - t, 0.3), lim));
+}
+function ring(x0, y0, x1, y1, rad, segs) {
+  const pts = [], C = [[x1 - rad, y0 + rad, -90], [x1 - rad, y1 - rad, 0], [x0 + rad, y1 - rad, 90], [x0 + rad, y0 + rad, 180]];
+  for (const [cx, cy, a] of C) for (let k = 0; k <= segs; k++) {
+    const t = (a + 90 * k / Math.max(segs, 1)) * Math.PI / 180;
+    pts.push([cx + rad * Math.cos(t), cy + rad * Math.sin(t)]);
+    if (segs === 0) break;
+  }
+  return pts;
+}
+function binMesh(b) {
+  const t = S.p.wall, f = S.p.floor, h = b.h;
+  const ri = innerRadius(b), segs = b.r > 0 ? 8 : 0;
+  const O = ring(0, 0, b.w, b.d, b.r, segs), I = ring(t, t, b.w - t, b.d - t, ri, segs), n = O.length;
+  const v = [];
+  O.forEach(([x, y]) => v.push(x, y, 0));
+  O.forEach(([x, y]) => v.push(x, y, h));
+  I.forEach(([x, y]) => v.push(x, y, h));
+  I.forEach(([x, y]) => v.push(x, y, f));
+  const tri = [];
+  for (let i = 1; i < n - 1; i++) tri.push(0, i + 1, i);
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    tri.push(i, j, n + j, i, n + j, n + i);
+    tri.push(n + i, n + j, 2 * n + j, n + i, 2 * n + j, 2 * n + i);
+    tri.push(3 * n + i, 2 * n + j, 3 * n + j, 3 * n + i, 2 * n + i, 2 * n + j);
+  }
+  for (let i = 1; i < n - 1; i++) tri.push(3 * n, 3 * n + i, 3 * n + i + 1);
+  return { v, tri };
+}
+
+// ---------- 2D view ----------
+const svg = $("svg");
+let L = null, drag = null;
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function render2D() {
+  const { W, D } = S.p;
+  L = layout();
+  svg.setAttribute("viewBox", `0 0 ${W} ${D}`);
+  svg.style.aspectRatio = `${W} / ${D}`;
+  svg.style.cursor = free() ? "crosshair" : "";
+  svg.textContent = "";
+  const box = svg.getBoundingClientRect();
+  const scale = Math.min(box.width / W || 1, box.height / D || 1) || 1;
+  scaleNow = scale;
+  const fy = (y, h) => D - y - h;
+  const cs = getComputedStyle(document.documentElement);
+  const col = n => cs.getPropertyValue(n).trim();
+
+  // grid
+  let minor = "", major = "";
+  for (let x = 10; x < W; x += 10) (x % 50 ? (minor += `M${x} 0V${D}`) : (major += `M${x} 0V${D}`));
+  for (let y = 10; y < D; y += 10) (y % 50 ? (minor += `M0 ${D - y}H${W}`) : (major += `M0 ${D - y}H${W}`));
+  el("rect", { x: 0, y: 0, width: W, height: D, fill: "rgba(0,0,0,.12)" }, svg);
+  el("path", { d: minor, stroke: col("--mat-minor"), "stroke-width": 1, "vector-effect": "non-scaling-stroke", fill: "none", "pointer-events": "none" }, svg);
+  el("path", { d: major, stroke: col("--mat-major"), "stroke-width": 1, "vector-effect": "non-scaling-stroke", fill: "none", "pointer-events": "none" }, svg);
+
+  const t = S.p.wall;
+  check = mergeCheck();
+  L.leaves.forEach((lf, idx) => {
+    const b = binOf(lf), g = el("g", { "data-id": lf.id, style: `cursor:${free() ? "move" : "pointer"}` }, svg);
+    el("rect", { x: lf.x, y: fy(lf.y, lf.h), width: lf.w, height: lf.h, fill: "transparent" }, g);
+    const isSel = sel.includes(lf.id);
+    if (b.w > 0 && b.d > 0) {
+      el("rect", { x: b.x, y: fy(b.y, b.d), width: b.w, height: b.d, rx: b.r, fill: b.ok ? col("--bin") : col("--warn-bg"),
+        stroke: isSel ? col("--sel") : col("--bin-edge"), "stroke-width": isSel ? 3 : 1, "vector-effect": "non-scaling-stroke" }, g);
+      if (b.ok) {
+        const ri = innerRadius(b);
+        el("rect", { x: b.x + t, y: fy(b.y + t, b.d - 2 * t), width: b.w - 2 * t, height: b.d - 2 * t, rx: ri,
+          fill: col("--pocket"), stroke: col("--bin-edge"), "stroke-width": .6, "stroke-opacity": .6, "vector-effect": "non-scaling-stroke" }, g);
+      }
+    }
+    const pxW = b.w * scale, pxH = b.d * scale;
+    const cx = b.x + b.w / 2, cy = fy(b.y, b.d) + b.d / 2;
+    const txt = (s, dy, px, cls, op) => {
+      const e = el("text", { x: cx, y: cy + dy / scale, "text-anchor": "middle", "font-size": px / scale, fill: col("--bin-ink"), class: cls }, g);
+      if (op) e.setAttribute("fill-opacity", op);
+      e.textContent = s;
+    };
+    const fit = (s, px, k) => { const max = Math.max(3, Math.floor((pxW - 10) / (px * k))); return s.length > max ? s.slice(0, max - 1) + "…" : s; };
+    const label = lf.name || "Bin " + (idx + 1);
+    const outer = `${fmt(b.w)} × ${fmt(b.d)}`, inner = `(${fmt(b.w - 2 * t)} × ${fmt(b.d - 2 * t)})`;
+    if (b.ok && pxW > 84 && pxH > 60) {
+      txt(fit(label, 14, .5), -10, 14, "lbl-n");
+      txt(outer, 5, 11, "lbl-d", .8);
+      txt(inner, 19, 10.5, "lbl-d", .55);
+    } else if (pxW > 70 && pxH > 40) {
+      txt(fit(label, 14, .5), -2, 14, "lbl-n");
+      txt(outer, 13, 11, "lbl-d", .8);
+    } else if (pxW > 18 && pxH > 16) {
+      txt(String(idx + 1), 4, 12, "lbl-n");
+    }
+  });
+
+  // merge preview / problem overlay
+  if (check && !(drag && drag.moved)) {
+    const ovg = el("g", { "pointer-events": "none" }, svg), s = 7 / scale, bb = check.bb;
+    if (!check.ok) {
+      const defs = el("defs", {}, ovg), pat = el("pattern", { id: "hatch", patternUnits: "userSpaceOnUse", width: s, height: s, patternTransform: "rotate(45)" }, defs);
+      el("rect", { width: s / 2, height: s, fill: col("--clash"), "fill-opacity": .7 }, pat);
+      check.partial.forEach(o => el("rect", { x: o.r.x, y: fy(o.r.y, o.r.h), width: o.r.w, height: o.r.h, fill: "url(#hatch)" }, ovg));
+      check.inside.forEach(o => el("rect", { x: o.l.x + 3 / scale, y: fy(o.l.y, o.l.h) + 3 / scale, width: Math.max(0, o.l.w - 6 / scale), height: Math.max(0, o.l.h - 6 / scale),
+        fill: "none", stroke: col("--sel"), "stroke-width": 2.5, "stroke-dasharray": "5 4", "vector-effect": "non-scaling-stroke" }, ovg));
+    }
+    el("rect", { x: bb.x, y: fy(bb.y, bb.y1 - bb.y), width: bb.x1 - bb.x, height: bb.y1 - bb.y, fill: "none",
+      stroke: check.ok ? col("--sel") : col("--clash"), "stroke-width": 2, "stroke-dasharray": "7 5", "vector-effect": "non-scaling-stroke" }, ovg);
+  }
+
+  // split mode: divider handles
+  L.divs.forEach(dv => {
+    const attrs = dv.dir === "x"
+      ? { x1: dv.at, x2: dv.at, y1: D - dv.c1, y2: D - dv.c0, style: "cursor:ew-resize" }
+      : { y1: D - dv.at, y2: D - dv.at, x1: dv.c0, x2: dv.c1, style: "cursor:ns-resize" };
+    const ln = el("line", Object.assign(attrs, { stroke: "rgba(0,0,0,0)", "stroke-width": 18, "vector-effect": "non-scaling-stroke", "pointer-events": "stroke" }), svg);
+    ln.dataset.div = JSON.stringify({ split: dv.split, i: dv.i });
+    ln.addEventListener("pointerenter", () => ln.setAttribute("stroke", "rgba(244,163,0,.45)"));
+    ln.addEventListener("pointerleave", () => { if (!drag) ln.setAttribute("stroke", "rgba(0,0,0,0)"); });
+  });
+
+  // free mode: resize handles on the selected bin
+  if (free() && sel.length === 1 && !(drag && drag.kind === "move" && drag.moved)) {
+    const lf = L.leaves.find(l => l.id === sel[0]);
+    if (lf) {
+      [["l", lf.x, lf.y, lf.x, lf.y + lf.h], ["r", lf.x + lf.w, lf.y, lf.x + lf.w, lf.y + lf.h],
+       ["f", lf.x, lf.y, lf.x + lf.w, lf.y], ["b", lf.x, lf.y + lf.h, lf.x + lf.w, lf.y + lf.h]].forEach(([side, x1, y1, x2, y2]) => {
+        const vert = side === "l" || side === "r", mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+        const len = Math.min(26 / scale, (vert ? lf.h : lf.w) * 0.45);
+        el("line", { x1: vert ? mx : mx - len / 2, x2: vert ? mx : mx + len / 2, y1: D - (vert ? my - len / 2 : my), y2: D - (vert ? my + len / 2 : my),
+          stroke: col("--sel"), "stroke-width": 6, "stroke-linecap": "round", "vector-effect": "non-scaling-stroke", "pointer-events": "none" }, svg);
+        const hit = el("line", { x1, y1: D - y1, x2, y2: D - y2, stroke: "rgba(0,0,0,0)", "stroke-width": 14, "vector-effect": "non-scaling-stroke",
+          "pointer-events": "stroke", style: `cursor:${vert ? "ew-resize" : "ns-resize"}` }, svg);
+        hit.dataset.edge = side; hit.dataset.id = lf.id;
+      });
+    }
+  }
+
+  // free mode: new bin being drawn
+  if (drag && drag.kind === "draw" && drag.cur && drag.cur.w > 0 && drag.cur.h > 0) {
+    const r = drag.cur, big = r.w >= MIN - EPS && r.h >= MIN - EPS;
+    el("rect", { x: r.x, y: fy(r.y, r.h), width: r.w, height: r.h, fill: col("--bin"), "fill-opacity": .35, stroke: big ? col("--sel") : col("--clash"),
+      "stroke-width": 2, "stroke-dasharray": "6 4", "vector-effect": "non-scaling-stroke", "pointer-events": "none" }, svg);
+    if (r.w * scale > 60 && r.h * scale > 22) {
+      const e = el("text", { x: r.x + r.w / 2, y: fy(r.y, r.h) + r.h / 2 + 4 / scale, "text-anchor": "middle", "font-size": 12 / scale, fill: "#ffffff", class: "lbl-d", "pointer-events": "none" }, svg);
+      e.textContent = big ? `${fmt(r.w - S.p.clr)} × ${fmt(r.h - S.p.clr)}` : `min ${MIN} × ${MIN}`;
+    }
+  }
+}
+
+function svgPoint(e) {
+  const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+  return { x: p.x, y: S.p.D - p.y };
+}
+svg.addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  const t = e.target, p = svgPoint(e), mod = e.shiftKey || e.ctrlKey || e.metaKey;
+  if (t.dataset && t.dataset.div) {
+    const { split, i } = JSON.parse(t.dataset.div);
+    drag = { kind: "div", dv: L.divs.find(d => d.split === split && d.i === i), before: JSON.stringify(S) };
+    svg.setPointerCapture(e.pointerId); e.preventDefault();
+    return;
+  }
+  if (t.dataset && t.dataset.edge) {
+    const id = +t.dataset.id;
+    drag = { kind: "edge", id, side: t.dataset.edge, orig: Object.assign({}, S.rects.find(r => r.id === id)), before: JSON.stringify(S) };
+    svg.setPointerCapture(e.pointerId); e.preventDefault();
+    return;
+  }
+  const g = t.closest && t.closest("g[data-id]");
+  if (g) {
+    const id = +g.dataset.id;
+    e.preventDefault();
+    if (mod) {
+      if (!sel.includes(id)) sel = sel.concat(id);
+      else if (sel.length > 1 || free()) sel = sel.filter(x => x !== id);
+      update(false);
+      return;
+    }
+    if (free()) {
+      if (!(sel.includes(id) && sel.length > 1)) sel = [id];
+      const ids = sel.slice();
+      drag = { kind: "move", id, ids, p0: p, cx: e.clientX, cy: e.clientY, moved: false,
+        orig: ids.map(i => Object.assign({}, S.rects.find(r => r.id === i))), before: JSON.stringify(S) };
+      svg.setPointerCapture(e.pointerId);
+    } else sel = [id];
+    update(false);
+    return;
+  }
+  if (free() && !mod) {
+    let q = { x: snapOne(p.x, edgesOf("x", [])), y: snapOne(p.y, edgesOf("y", [])) };
+    if (!fits({ x: q.x, y: q.y, w: 0, h: 0 }, []) || S.rects.some(r => q.x > r.x + EPS && q.x < r.x + r.w - EPS && q.y > r.y + EPS && q.y < r.y + r.h - EPS)) q = p;
+    drag = { kind: "draw", p0: q, pt: q, cur: null };
+    sel = [];
+    svg.setPointerCapture(e.pointerId); e.preventDefault();
+    update(false);
+  }
+});
+svg.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const p = svgPoint(e);
+  if (drag.kind === "div") {
+    const { dv } = drag;
+    let pos = dv.dir === "x" ? p.x : p.y;
+    pos = Math.round(pos * 2) / 2;
+    pos = Math.max(dv.a + MIN, Math.min(dv.b - MIN, pos));
+    const node = nodeById(S.tree, dv.split), sizes = kidSizes(node, L.rects);
+    sizes[dv.i] = pos - dv.a; sizes[dv.i + 1] = dv.b - pos;
+    node.kids.forEach((k, j) => k.w = sizes[j]);
+    drag.changed = true;
+    render2D(); renderTool(); renderParts();
+  } else if (drag.kind === "move") {
+    if (!drag.moved && Math.hypot(e.clientX - drag.cx, e.clientY - drag.cy) < 4) return;
+    drag.moved = true;
+    moveGroup(drag.orig, drag.ids, p.x - drag.p0.x, p.y - drag.p0.y, true);
+    render2D(); renderTool();
+  } else if (drag.kind === "edge") {
+    edgeDrag(drag, p);
+    render2D(); renderTool(); renderParts();
+  } else if (drag.kind === "draw") {
+    const q = { x: snapOne(p.x, edgesOf("x", [])), y: snapOne(p.y, edgesOf("y", [])) };
+    const mk = (a, b) => ({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) });
+    for (const c of [q, { x: q.x, y: drag.pt.y }, { x: drag.pt.x, y: q.y }]) {
+      const r = mk(drag.p0, c);
+      if (fits(r, [])) { drag.cur = r; drag.pt = c; break; }
+    }
+    render2D();
+  }
+});
+function edgeDrag(d, p) {
+  const r = S.rects.find(o => o.id === d.id), o0 = d.orig;
+  const axis = d.side === "l" || d.side === "r" ? "x" : "y";
+  const [P, Z, Q, T] = axis === "x" ? ["x", "w", "y", "h"] : ["y", "h", "x", "w"], lim = axis === "x" ? S.p.W : S.p.D;
+  const v = snapOne(axis === "x" ? p.x : p.y, edgesOf(axis, [d.id]));
+  const lo0 = o0[P], hi0 = o0[P] + o0[Z];
+  const crossing = S.rects.filter(o => o.id !== d.id && ov(o[Q], o[Q] + o[T], o0[Q], o0[Q] + o0[T]));
+  if (d.side === "r" || d.side === "b") {
+    let max = lim; crossing.forEach(o => { if (o[P] >= hi0 - EPS) max = Math.min(max, o[P]); });
+    const nh = Math.max(lo0 + MIN, Math.min(max, v)); r[P] = lo0; r[Z] = nh - lo0;
+  } else {
+    let min = 0; crossing.forEach(o => { if (o[P] + o[Z] <= lo0 + EPS) min = Math.max(min, o[P] + o[Z]); });
+    const nl = Math.min(hi0 - MIN, Math.max(min, v)); r[P] = nl; r[Z] = hi0 - nl;
+  }
+}
+const endDrag = () => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  const changed = JSON.stringify(S) !== d.before;
+  if (d.kind === "draw") {
+    if (d.cur && d.cur.w >= MIN - EPS && d.cur.h >= MIN - EPS) {
+      snap();
+      const r = Object.assign({ id: S.nid++ }, d.cur);
+      S.rects.push(r); sel = [r.id];
+      update();
+    } else {
+      if (d.cur && (d.cur.w > 2 || d.cur.h > 2)) toast(`Bins need to be at least ${MIN} × ${MIN} mm. Drag out a bigger box.`);
+      update(false);
+    }
+    return;
+  }
+  if (d.kind === "move" && !d.moved && d.ids.length > 1) sel = [d.id];
+  if (changed && d.before) pushHist(d.before);
+  update(changed);
+};
+svg.addEventListener("pointerup", endDrag);
+svg.addEventListener("pointercancel", endDrag);
+
+// ---------- operations ----------
+function splitSel(dir) {
+  let n = Math.round(+$("sN").value);
+  if (!(n >= 2)) n = 2; n = Math.min(n, 20);
+  if (sel.length !== 1) return;
+  L = layout();
+  const id = sel[0], lf = L.leaves.find(l => l.id === id);
+  if ((dir === "x" ? lf.w : lf.h) / n < MIN) { toast(`Too small to split into ${n}. Each part would be under ${MIN} mm.`); return; }
+  snap();
+  if (free()) {
+    const i = S.rects.findIndex(r => r.id === id), r = S.rects[i], parts = [];
+    for (let k = 0; k < n; k++) parts.push(dir === "x"
+      ? { id: S.nid++, x: r.x + k * r.w / n, y: r.y, w: r.w / n, h: r.h }
+      : { id: S.nid++, x: r.x, y: r.y + k * r.h / n, w: r.w, h: r.h / n });
+    if (r.name) parts[0].name = r.name;
+    S.rects.splice(i, 1, ...parts);
+    sel = [parts[0].id];
+    update();
+    return;
+  }
+  const path = findPath(S.tree, id), parent = path.length ? path[path.length - 1] : null;
+  const fresh = Array.from({ length: n }, () => ({ id: S.nid++ }));
+  if (lf.name) fresh[0].name = lf.name;
+  if (parent && parent.node.dir === dir) {
+    const w = parent.node.kids[parent.i].w;
+    parent.node.kids.splice(parent.i, 1, ...fresh.map(f => ({ w: w / n, n: f })));
+  } else {
+    const node = { id: S.nid++, dir, kids: fresh.map(f => ({ w: 1, n: f })) };
+    if (parent) parent.node.kids[parent.i].n = node; else S.tree = node;
+  }
+  sel = [fresh[0].id];
+  update();
+}
+function mergeSel() {
+  L = layout();
+  const c = mergeCheck();
+  if (!c || !c.ok) { if (c) toast(c.why); return; }
+  snap();
+  const count = sel.length;
+  if (free()) {
+    const keep = sel.map(id => S.rects.find(r => r.id === id).name).find(n => n);
+    const r = { id: sel[0], x: c.bb.x, y: c.bb.y, w: c.bb.x1 - c.bb.x, h: c.bb.y1 - c.bb.y };
+    if (keep) r.name = keep;
+    S.rects[S.rects.findIndex(o => o.id === sel[0])] = r;
+    S.rects = S.rects.filter(o => o.id === sel[0] || !sel.includes(o.id));
+  } else { S.tree = c.tree; S.nid = c.nid; }
+  sel = [sel[0]];
+  update();
+  toast(`Merged ${count} bins into one ${fmt1(c.w)} × ${fmt1(c.d)} mm bin.`);
+}
+function axisParent(id, axis) {
+  const p = findPath(S.tree, id);
+  for (let k = p.length - 1; k >= 0; k--) if (p[k].node.dir === axis) return p[k];
+  return null;
+}
+// split mode: resize one cell (mm, including clearance) by moving its neighbour along that axis
+function resizeLeaf(id, axis, cell) {
+  L = layout();
+  const hit = axisParent(id, axis);
+  if (!hit) return "full";
+  const sizes = kidSizes(hit.node, L.rects), n = sizes.length, i = hit.i, j = i < n - 1 ? i + 1 : i - 1;
+  const want = cell - sizes[i], delta = Math.max(MIN - sizes[i], Math.min(sizes[j] - MIN, want));
+  if (Math.abs(delta) < 1e-6) return Math.abs(want) < 1e-6 ? "same" : "clamped";
+  sizes[i] += delta; sizes[j] -= delta;
+  hit.node.kids.forEach((k, q) => k.w = sizes[q]);
+  return Math.abs(delta - want) < 1e-6 ? "ok" : "clamped";
+}
+function setSize(axis, val) {
+  if (!(val > 0) || sel.length !== 1) return update(false);
+  const before = JSON.stringify(S);
+  const r = free() ? fitFree(sel[0], axis, val + S.p.clr) : resizeLeaf(sel[0], axis, val + S.p.clr);
+  if (r === "full") toast(axis === "x" ? "This bin spans the full drawer width. Change the drawer width instead." : "This bin spans the full drawer depth. Change the drawer depth instead.");
+  else if (r === "clamped") toast(free() ? "Size limited by the bins around it and the drawer walls." : `Size limited so the neighbouring bin stays at least ${MIN} mm.`);
+  if (JSON.stringify(S) !== before) pushHist(before);
+  update();
+}
+function matchSel(axis) {
+  if (sel.length < 2) return;
+  L = layout();
+  const before = JSON.stringify(S), key = axis === "x" ? "w" : "h", word = axis === "x" ? "wide" : "deep";
+  let shared = false;
+  if (free()) {
+    const [pk, sk, qk, tk] = axis === "x" ? ["x", "w", "y", "h"] : ["y", "h", "x", "w"];
+    const picked = sel.map(id => S.rects.find(r => r.id === id)), sorted = [...picked].sort((a, b) => a[pk] - b[pk]);
+    const inRow = sorted.every((r, k) => k === 0 || sorted[k - 1][pk] + sorted[k - 1][sk] <= r[pk] + EPS)
+      && Math.min(...picked.map(r => r[qk] + r[tk])) - Math.max(...picked.map(r => r[qk])) > EPS;
+    if (inRow) {
+      // in a row: share their combined size equally and keep the gaps between them
+      const backup = JSON.stringify(S.rects), avg = picked.reduce((s, r) => s + r[sk], 0) / picked.length;
+      const gaps = sorted.map((r, k) => k === 0 ? 0 : r[pk] - (sorted[k - 1][pk] + sorted[k - 1][sk]));
+      let pos = sorted[0][pk];
+      sorted.forEach((r, k) => { pos += gaps[k]; r[pk] = pos; r[sk] = avg; pos += avg; });
+      if (sorted.every(r => fits(r, [r.id]))) shared = true;
+      else S.rects = JSON.parse(backup);
+    }
+    if (!shared) {
+      const target = S.rects.find(r => r.id === sel[0])[sk];
+      sel.slice(1).forEach(id => fitFree(id, axis, target));
+    }
+  } else {
+    const anc = sel.map(id => axisParent(id, axis));
+    if (anc.some(a => !a)) { toast(`One of these bins spans the full drawer ${axis === "x" ? "width" : "depth"}, so it can't change size that way.`); return; }
+    shared = anc.every(a => a.node === anc[0].node) && new Set(anc.map(a => a.i)).size === anc.length;
+    if (shared) {
+      // same row/column: share their combined size equally, nothing else moves
+      const node = anc[0].node, sizes = kidSizes(node, L.rects), idx = anc.map(a => a.i);
+      const avg = idx.reduce((s, i) => s + sizes[i], 0) / idx.length;
+      idx.forEach(i => sizes[i] = avg);
+      node.kids.forEach((k, q) => k.w = sizes[q]);
+    } else {
+      // different rows/columns: match everything to the first bin picked
+      const target = L.leaves.find(l => l.id === sel[0])[key];
+      for (let pass = 0; pass < 4; pass++) sel.slice(1).forEach(id => resizeLeaf(id, axis, target));
+    }
+  }
+  L = layout();
+  const vals = sel.map(id => L.leaves.find(l => l.id === id)[key]);
+  const ok = Math.max(...vals) - Math.min(...vals) < 0.05;
+  if (JSON.stringify(S) !== before) pushHist(before);
+  update();
+  const size = `${fmt1(vals[0] - S.p.clr)} mm ${word}`;
+  toast(!ok ? (free() ? "Couldn't match them exactly: other bins or the drawer walls are in the way." : `Couldn't match them exactly: a neighbouring bin would drop under ${MIN} mm.`)
+    : shared ? `${sel.length} bins are now ${size}.` : `Matched to ${nameOf(sel[0])}, the first bin you selected. All are now ${size}.`);
+}
+function deleteSel() {
+  if (!free() || !sel.length) return;
+  snap();
+  const n = sel.length;
+  S.rects = S.rects.filter(r => !sel.includes(r.id));
+  sel = [];
+  update();
+  toast(`Deleted ${n} ${plural(n, "bin", "bins")}. Undo brings ${plural(n, "it", "them")} back.`);
+}
+// cover the empty space with as few, large bins as possible; gaps thinner than MIN stay empty
+function fillEmpty() {
+  if (!free()) return;
+  const W = S.p.W, D = S.p.D, R = S.rects;
+  const uniq = (arr, lim) => {
+    const out = [];
+    arr.map(v => Math.round(v * 100) / 100).filter(v => v >= 0 && v <= lim).sort((a, b) => a - b)
+      .forEach(v => { if (!out.length || v - out[out.length - 1] > EPS) out.push(v); });
+    return out;
+  };
+  const xs = uniq([0, W, ...R.flatMap(r => [r.x, r.x + r.w])], W), ys = uniq([0, D, ...R.flatMap(r => [r.y, r.y + r.h])], D);
+  const nx = xs.length - 1, ny = ys.length - 1;
+  const used = Array.from({ length: nx }, (_, i) => Array.from({ length: ny }, (_, j) => {
+    const cx = (xs[i] + xs[i + 1]) / 2, cy = (ys[j] + ys[j + 1]) / 2;
+    return R.some(r => cx > r.x && cx < r.x + r.w && cy > r.y && cy < r.y + r.h);
+  }));
+  const added = [];
+  let nid = S.nid;
+  for (;;) {
+    const run = used.map(c => { const out = new Array(ny).fill(0); for (let j = ny - 1; j >= 0; j--) out[j] = c[j] ? 0 : (j + 1 < ny ? out[j + 1] : 0) + 1; return out; });
+    let best = null;
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) {
+      if (used[i][j]) continue;
+      let top = ny - 1;
+      for (let i2 = i; i2 < nx; i2++) {
+        if (!run[i2][j]) break;
+        top = Math.min(top, j + run[i2][j] - 1);
+        const w = xs[i2 + 1] - xs[i], h = ys[top + 1] - ys[j];
+        if (w >= MIN - EPS && h >= MIN - EPS && (!best || w * h > best.a + 1e-6)) best = { i, j, i2, top, a: w * h, w, h };
+      }
+    }
+    if (!best) break;
+    for (let i = best.i; i <= best.i2; i++) for (let j = best.j; j <= best.top; j++) used[i][j] = true;
+    added.push({ id: nid++, x: xs[best.i], y: ys[best.j], w: best.w, h: best.h });
+  }
+  let left = 0;
+  for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) if (!used[i][j]) left += (xs[i + 1] - xs[i]) * (ys[j + 1] - ys[j]);
+  if (!added.length) {
+    toast(left > 1 ? `The remaining gaps are all thinner than ${MIN} mm, so there's nothing big enough to fill.` : "There's no empty space to fill.");
+    return;
+  }
+  snap();
+  S.nid = nid;
+  S.rects.push(...added);
+  sel = added.length === 1 ? [added[0].id] : [];
+  update();
+  toast(`Added ${added.length} ${plural(added.length, "bin", "bins")}.` + (left > 1 ? ` Some gaps under ${MIN} mm were left empty.` : ""));
+}
+function setMode(m) {
+  if (m === S.mode) return;
+  const { W, D } = S.p;
+  if (m === "free") {
+    snap();
+    L = layout();
+    S.rects = L.leaves.map(l => { const r = { id: l.id, x: l.x, y: l.y, w: l.w, h: l.h }; if (l.name) r.name = l.name; return r; });
+    S.mode = "free";
+    update();
+    return;
+  }
+  if (!S.rects.length) { toast("Add some bins before switching to split lines.", 5000); return; }
+  const empty = emptyArea();
+  if (empty > 1) { toast(`Split lines need the drawer completely full, and ${fmt1(empty / (W * D) * 100)}% is empty. Use Fill empty space first.`, 6500); return; }
+  const ctr = { n: S.nid };
+  const tree = buildTree(S.rects.map(r => Object.assign({ name: "" }, r)), 0, 0, W, D, "y", ctr);
+  if (!tree) { toast("These bins interlock in a way that straight lines across the drawer can't divide, so this layout has to stay in free layout mode.", 7000); return; }
+  const keepSel = sel.slice();
+  snap();
+  S.tree = tree; S.nid = ctr.n; S.mode = "split"; delete S.rects;
+  sel = keepSel;
+  update();
+}
+
+// ---------- panels ----------
+const PARAMS = [["pW", "W", 20], ["pD", "D", 20], ["pH", "H", 5], ["pbh", "bh", 3], ["pwall", "wall", .4], ["pfloor", "floor", .4], ["pclr", "clr", 0], ["prad", "rad", 0]];
+function syncParams() { PARAMS.forEach(([id, k]) => $(id).value = S.p[k]); }
+PARAMS.forEach(([id, k, min]) => $(id).addEventListener("change", e => {
+  const v = parseFloat(e.target.value);
+  if (!(v >= min)) { e.target.value = S.p[k]; toast(`Enter a number of at least ${min} mm.`); return; }
+  if (v === S.p[k]) return;
+  if (free() && (k === "W" || k === "D") && S.rects.length) {
+    const reach = Math.max(...S.rects.map(r => k === "W" ? r.x + r.w : r.y + r.h));
+    if (v < reach - EPS) { e.target.value = S.p[k]; toast(`Bins reach ${fmt1(reach)} mm. Move or delete them before making the drawer smaller.`, 5000); return; }
+  }
+  snap(); S.p[k] = v; update();
+}));
+
+function renderTool() {
+  const multi = sel.length > 1, none = !sel.length, nameInp = $("selName"), st = $("status");
+  $("deleteBtn").hidden = !free();
+  $("deleteBtn").disabled = none;
+  st.className = "status";
+  if (none) {
+    nameInp.hidden = true; $("multiName").hidden = false;
+    $("multiName").textContent = "No bin selected";
+    $("selDims").textContent = ""; $("selInner").textContent = "";
+    ["sW", "sD", "sN", "splitX", "splitY", "mergeBtn", "matchW", "matchD"].forEach(id => $(id).disabled = true);
+    $("sW").value = ""; $("sD").value = "";
+    st.textContent = L.leaves.length ? "Click a bin to select it, or drag on empty space to draw a new one."
+      : "The drawer is empty. Drag on the layout to draw a bin, or use Fill empty space.";
+    return;
+  }
+  const idx = L.leaves.findIndex(l => l.id === sel[0]), lf = L.leaves[idx], b = binOf(lf), t = S.p.wall;
+  nameInp.hidden = multi; $("multiName").hidden = !multi;
+  ["sW", "sD", "sN", "splitX", "splitY"].forEach(id => $(id).disabled = multi);
+  if (multi) {
+    $("multiName").textContent = `${sel.length} bins selected`;
+    const names = sel.map(nameOf);
+    $("selDims").textContent = names.length > 6 ? names.slice(0, 6).join(", ") + ", …" : names.join(", ");
+    $("selInner").textContent = "";
+    $("sW").value = ""; $("sD").value = "";
+  } else {
+    nameInp.placeholder = "Bin " + (idx + 1);
+    if (document.activeElement !== nameInp) nameInp.value = lf.name;
+    $("selDims").textContent = `Outside ${fmt1(b.w)} × ${fmt1(b.d)} × ${fmt1(b.h)} mm`;
+    $("selInner").textContent = b.ok ? `Inside  ${fmt1(b.w - 2 * t)} × ${fmt1(b.d - 2 * t)} × ${fmt1(b.h - S.p.floor)} mm` : "Too small for the wall thickness";
+    if (document.activeElement !== $("sW")) $("sW").value = fmt1(b.w);
+    if (document.activeElement !== $("sD")) $("sD").value = fmt1(b.d);
+  }
+  const vals = key => sel.map(id => L.leaves.find(l => l.id === id)[key]);
+  const same = key => { const v = vals(key); return Math.max(...v) - Math.min(...v) < 0.05; };
+  $("mergeBtn").disabled = !(check && check.ok);
+  $("matchW").disabled = !multi || same("w");
+  $("matchD").disabled = !multi || same("h");
+  $("matchW").title = multi && same("w") ? "These bins are already the same width" : "";
+  $("matchD").title = multi && same("h") ? "These bins are already the same depth" : "";
+  if (!multi) {
+    st.textContent = free() ? "Drag to move. Drag the amber handles to resize. Shift-click to select more. Arrow keys nudge 1 mm."
+      : L.leaves.length > 1 ? "Shift-click other bins to merge them or match their sizes." : "Split this bin to start your layout.";
+  } else if (!check) {
+    st.textContent = "";
+  } else if (check.ok) {
+    st.classList.add("good");
+    st.textContent = `Ready to merge into one ${fmt1(check.w)} × ${fmt1(check.d)} mm bin` + (check.fillsGap ? ", including the empty space inside the outline." : ".") + " Press Esc to go back to one bin.";
+  } else { st.classList.add("bad"); st.textContent = "Can't merge yet. " + check.why; }
+}
+function renderParts() {
+  const groups = new Map();
+  let bad = 0;
+  L.leaves.forEach(lf => {
+    const b = binOf(lf); if (!b.ok) bad++;
+    const a = [fmt(b.w), fmt(b.d)].sort((x, y) => x - y), key = `${a[1]} × ${a[0]}`;
+    groups.set(key, (groups.get(key) || 0) + 1);
+  });
+  const n = L.leaves.length;
+  let total = `${n} ${plural(n, "bin", "bins")}, ${groups.size} different ${plural(groups.size, "size", "sizes")}, ${fmt(S.p.bh)} mm tall`;
+  if (free()) { const e = emptyArea() / (S.p.W * S.p.D) * 100; if (e > 0.05) total += ` · ${fmt1(e)}% of the drawer empty`; }
+  $("total").textContent = total;
+  const ul = $("sizes"); ul.textContent = "";
+  [...groups.entries()].sort((a, b) => b[1] - a[1]).forEach(([k, c]) => {
+    const li = document.createElement("li");
+    const s = document.createElement("span"); s.textContent = k + " mm";
+    const m = document.createElement("b"); m.textContent = "× " + c;
+    li.append(s, m); ul.appendChild(li);
+  });
+  const w = [];
+  if (S.p.bh > S.p.H) w.push(`Bins are ${fmt(S.p.bh)} mm tall but the drawer is only ${fmt(S.p.H)} mm high.`);
+  if (S.p.floor >= S.p.bh) w.push("Floor thickness must be less than the bin height.");
+  if (bad) w.push(`${bad} ${plural(bad, "bin is", "bins are")} too small for the wall thickness and will be skipped on export.`);
+  $("warnings").hidden = !w.length; $("warnings").textContent = w.join(" ");
+}
+const inClaude = !!(window.claude && window.claude.use);
+function renderMode() {
+  $("modeSplit").setAttribute("aria-pressed", String(!free()));
+  $("modeFree").setAttribute("aria-pressed", String(free()));
+  $("fillBtn").hidden = !free();
+  $("modeNote").textContent = free()
+    ? "Bins can leave gaps. Drag bins to move them, and drag on empty space to draw new ones."
+    : "Bins always fill the drawer. Drag the lines between bins to resize them.";
+  $("dlNote").textContent = (free() ? "Click a bin to select it. Shift-click to select more. Delete removes the selected bins."
+    : "Click a bin to select it. Shift-click to select more. Drag the lines between bins to resize.")
+    + (inClaude ? " In this preview the 3MF is saved inside a .zip; unzip it, then open the .3mf in your slicer." : "");
+}
+function update(persist = true) {
+  if (persist) save();
+  cleanSel();
+  renderMode(); render2D(); renderTool(); renderParts();
+  if (!$("view3d").hidden) build3D();
+}
+
+$("splitX").onclick = () => splitSel("x");
+$("splitY").onclick = () => splitSel("y");
+$("mergeBtn").onclick = mergeSel;
+$("matchW").onclick = () => matchSel("x");
+$("matchD").onclick = () => matchSel("y");
+$("deleteBtn").onclick = deleteSel;
+$("fillBtn").onclick = fillEmpty;
+$("modeSplit").onclick = () => setMode("split");
+$("modeFree").onclick = () => setMode("free");
+$("undoBtn").onclick = undo;
+
+// rename
+let nameSnapped = false;
+const nameInp = $("selName");
+nameInp.addEventListener("focus", () => { nameSnapped = false; nameInp.select(); });
+nameInp.addEventListener("input", () => {
+  if (sel.length !== 1) return;
+  const node = binNode(sel[0]); if (!node) return;
+  if (!nameSnapped) { snap(); nameSnapped = true; }
+  const v = nameInp.value.trim().slice(0, 40);
+  if (v) node.name = v; else delete node.name;
+  save(); render2D(); renderParts();
+});
+nameInp.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === "Escape") nameInp.blur(); });
+nameInp.addEventListener("blur", () => update(false));
+
+document.addEventListener("keydown", e => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
+  if (!menu.hidden) {
+    if (e.key === "Escape" && document.activeElement !== $("renameInp")) { closeMenu(); saveBtn.focus(); }
+    return;
+  }
+  if (typing || drag) return;
+  if (e.key === "Escape") {
+    if (sel.length > 1) { sel = [sel[0]]; update(false); }
+    else if (free() && sel.length) { sel = []; update(false); }
+  }
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z") { e.preventDefault(); undo(); }
+  if (free() && sel.length && (e.key === "Delete" || e.key === "Backspace")) { e.preventDefault(); deleteSel(); }
+  const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+  if (free() && sel.length && arrows[e.key] && $("view3d").hidden) {
+    e.preventDefault();
+    const step = e.shiftKey ? 10 : 1, [ax, ay] = arrows[e.key];
+    const before = JSON.stringify(S), orig = sel.map(id => Object.assign({}, S.rects.find(r => r.id === id)));
+    if (moveGroup(orig, sel.slice(), ax * step, ay * step, false)) { pushHist(before); update(); }
+  }
+});
+$("sW").addEventListener("change", e => setSize("x", parseFloat(e.target.value)));
+$("sD").addEventListener("change", e => setSize("y", parseFloat(e.target.value)));
+let armTimer = null;
+$("resetBtn").onclick = () => {
+  const b = $("resetBtn");
+  if (!b.classList.contains("danger-armed")) {
+    b.classList.add("danger-armed"); b.textContent = "Tap again to reset";
+    armTimer = setTimeout(() => { b.classList.remove("danger-armed"); b.textContent = "Reset layout"; }, 3000);
+    return;
+  }
+  clearTimeout(armTimer); b.classList.remove("danger-armed"); b.textContent = "Reset layout";
+  snap(); const nid = S.nid;
+  if (free()) S.rects = [{ id: nid, x: 0, y: 0, w: S.p.W, h: S.p.D }];
+  else S.tree = { id: nid };
+  S.nid = nid + 1; sel = [nid];
+  update(); toast("Layout reset to one bin. Undo brings it back.");
+};
+
+// ---------- saved layouts menu ----------
+const menu = $("saveMenu"), saveBtn = $("saveBtn");
+const slug = n => n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "drawer-bins";
+function binCount(st) {
+  if (st.mode === "free") return st.rects.length;
+  let n = 0; (function c(t) { if (!t.dir) n++; else t.kids.forEach(k => c(k.n)); })(st.tree); return n;
+}
+function ago(t) {
+  const s = (Date.now() - t) / 1000;
+  if (s < 60) return "edited just now";
+  if (s < 3600) return `edited ${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `edited ${Math.floor(s / 3600)} h ago`;
+  const d = Math.floor(s / 86400);
+  return d < 30 ? `edited ${d} ${plural(d, "day", "days")} ago` : "edited " + new Date(t).toLocaleDateString();
+}
+function uniqueName(base) {
+  const names = new Set(Object.values(store.saves).map(v => v.name));
+  if (!names.has(base)) return base;
+  for (let k = 2; ; k++) if (!names.has(`${base} (${k})`)) return `${base} (${k})`;
+}
+function renderSaves() {
+  $("saveName").textContent = store.saves[store.current].name;
+  const list = $("saveList"); list.textContent = "";
+  Object.entries(store.saves).sort((a, b) => b[1].updated - a[1].updated).forEach(([id, v]) => {
+    const b = document.createElement("button"); b.className = "si"; b.type = "button";
+    if (id === store.current) b.setAttribute("aria-current", "true");
+    const n = document.createElement("span"); n.className = "si-n"; n.textContent = v.name;
+    const c = binCount(v.state), m = document.createElement("span"); m.className = "si-m";
+    m.textContent = `${c} ${plural(c, "bin", "bins")} · ${fmt(v.state.p.W)} × ${fmt(v.state.p.D)} mm · ${ago(v.updated)}`;
+    b.append(n, m);
+    b.onclick = () => { if (id !== store.current) { switchTo(id); toast(`Opened “${v.name}”.`); } closeMenu(); };
+    list.appendChild(b);
+  });
+  const only = Object.keys(store.saves).length < 2;
+  $("delLayout").disabled = only;
+  $("delLayout").title = only ? "You need at least one layout" : "";
+}
+function switchTo(id) {
+  if (!store.saves[id]) return;
+  store.saves[store.current].state = S;
+  store.current = id; S = store.saves[id].state;
+  history = []; $("undoBtn").disabled = true;
+  sel = []; cleanSel(); syncParams(); saveStore();
+  update(false); renderSaves();
+}
+function openMenu() { renderSaves(); menu.hidden = false; saveBtn.setAttribute("aria-expanded", "true"); }
+function closeMenu() { menu.hidden = true; saveBtn.setAttribute("aria-expanded", "false"); $("renameRow").hidden = true; disarmDel(); }
+saveBtn.onclick = () => menu.hidden ? openMenu() : closeMenu();
+document.addEventListener("pointerdown", e => { if (!menu.hidden && !e.target.closest(".saves")) closeMenu(); });
+
+function startRename() {
+  const row = $("renameRow"), inp = $("renameInp");
+  row.hidden = false; inp.value = store.saves[store.current].name;
+  inp.focus(); inp.select();
+}
+function finishRename() {
+  const v = $("renameInp").value.trim().slice(0, 40);
+  if (v) { store.saves[store.current].name = v; saveStore(); }
+  $("renameRow").hidden = true; renderSaves();
+}
+$("renameOk").onclick = finishRename;
+$("renameInp").addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); finishRename(); }
+  if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); $("renameRow").hidden = true; }
+});
+$("renLayout").onclick = startRename;
+$("newLayout").onclick = () => {
+  const id = newId();
+  store.saves[id] = { name: uniqueName("New layout"), state: { mode: "split", p: Object.assign({}, S.p), tree: { id: 1 }, nid: 2 }, updated: Date.now() };
+  switchTo(id); startRename();
+};
+$("dupLayout").onclick = () => {
+  const id = newId(), cur = store.saves[store.current];
+  store.saves[store.current].state = S;
+  store.saves[id] = { name: uniqueName(cur.name + " copy"), state: JSON.parse(JSON.stringify(S)), updated: Date.now() };
+  switchTo(id); startRename();
+};
+let delTimer = null;
+function disarmDel() { clearTimeout(delTimer); const b = $("delLayout"); b.classList.remove("danger-armed"); b.textContent = "Delete this layout"; }
+$("delLayout").onclick = () => {
+  const b = $("delLayout"), name = store.saves[store.current].name;
+  if (!b.classList.contains("danger-armed")) {
+    b.classList.add("danger-armed"); b.textContent = `Click again to delete “${name}”`;
+    delTimer = setTimeout(disarmDel, 3500);
+    return;
+  }
+  disarmDel();
+  const gone = store.current;
+  const next = Object.entries(store.saves).filter(([id]) => id !== gone).sort((a, c) => c[1].updated - a[1].updated)[0][0];
+  store.current = next;
+  delete store.saves[gone];
+  S = store.saves[next].state;
+  history = []; $("undoBtn").disabled = true; sel = []; cleanSel(); syncParams(); saveStore(); update(false); renderSaves();
+  toast(`Deleted “${name}”.`);
+};
+
+// file download / upload
+async function offerFile(filename, data, type) {
+  if (inClaude) {
+    const dl = await dlReady;
+    if (dl) {
+      try { await dl.save({ filename, data }); return "saved"; }
+      catch (e) { return e && e.code === "declined" ? "declined" : "failed"; }
+    }
+  }
+  const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type: type || "application/octet-stream" })), a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return "saved";
+}
+async function downloadLayouts(ids, filename) {
+  store.saves[store.current].state = S;
+  const body = JSON.stringify({ app: "drawer-bin-maker", version: 1, layouts: ids.map(id => ({ name: store.saves[id].name, state: store.saves[id].state })) }, null, 1);
+  closeMenu();
+  const r = await offerFile(filename, body, "application/json");
+  if (r === "saved") toast(`Downloaded ${ids.length} ${plural(ids.length, "layout", "layouts")}.`);
+  else if (r === "declined") toast("Download cancelled.");
+  else toast("Downloading isn't available here. Host the page yourself to download files.");
+}
+$("dlOne").onclick = () => downloadLayouts([store.current], slug(store.saves[store.current].name) + ".json");
+$("dlAll").onclick = () => downloadLayouts(Object.keys(store.saves), "drawer-bin-maker-layouts.json");
+$("upLayout").onclick = () => $("upFile").click();
+$("upFile").addEventListener("change", e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  if (f.size > 5e6) { toast("That file is too big to be a layout file."); return; }
+  const rd = new FileReader();
+  rd.onload = () => importLayouts(String(rd.result), f.name);
+  rd.onerror = () => toast("Couldn't read that file. Try choosing it again.");
+  rd.readAsText(f);
+});
+function importLayouts(text, fname) {
+  let j = null;
+  try { j = JSON.parse(text); } catch (e) {}
+  let list = [];
+  if (j && Array.isArray(j.layouts)) list = j.layouts;
+  else if (j && j.p) list = [{ name: fname.replace(/\.json$/i, ""), state: j }];
+  const good = list.filter(l => l && validState(l.state));
+  if (!good.length) { closeMenu(); toast("That isn't a Drawer Bin Maker layout file. Choose a .json file downloaded from this site.", 5000); return; }
+  store.saves[store.current].state = S;
+  const ids = good.map(l => {
+    const id = newId() + Math.random().toString(36).slice(2, 4);
+    store.saves[id] = { name: uniqueName(String(l.name || "Uploaded layout").slice(0, 40)), state: normalize(l.state), updated: Date.now() };
+    return id;
+  });
+  switchTo(ids[0]); closeMenu();
+  const skipped = list.length - good.length;
+  toast(ids.length === 1 ? `Loaded “${store.saves[ids[0]].name}”.` : `Loaded ${ids.length} layouts and opened “${store.saves[ids[0]].name}”.` + (skipped ? ` ${skipped} damaged ${plural(skipped, "layout was", "layouts were")} skipped.` : ""), 4500);
+}
+
+let toastTimer;
+function toast(msg, ms = 3400) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, ms); }
+
+// ---------- 3MF + zip ----------
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u) { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(files) {
+  const enc = new TextEncoder(), chunks = [], central = [];
+  let off = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), data = typeof f.data === "string" ? enc.encode(f.data) : f.data, crc = crc32(data);
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(10, 0, true); h.setUint16(12, 0x21, true);
+    h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, name.length, true);
+    chunks.push(new Uint8Array(h.buffer), name, data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(14, 0x21, true);
+    c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, name.length, true);
+    c.setUint32(42, off, true);
+    central.push(new Uint8Array(c.buffer), name);
+    off += 30 + name.length + data.length;
+  }
+  const cdSize = central.reduce((a, u) => a + u.length, 0);
+  const e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+  e.setUint32(12, cdSize, true); e.setUint32(16, off, true);
+  return new Blob([...chunks, ...central, new Uint8Array(e.buffer)]);
+}
+function build3MF() {
+  L = layout();
+  const objs = [], items = [];
+  let skipped = 0, id = 1;
+  L.leaves.forEach((lf, idx) => {
+    const b = binOf(lf);
+    if (!b.ok) { skipped++; return; }
+    const m = binMesh(b), vs = [], ts = [];
+    for (let i = 0; i < m.v.length; i += 3) vs.push(`<vertex x="${fmt(m.v[i])}" y="${fmt(m.v[i + 1])}" z="${fmt(m.v[i + 2])}"/>`);
+    for (let i = 0; i < m.tri.length; i += 3) ts.push(`<triangle v1="${m.tri[i]}" v2="${m.tri[i + 1]}" v3="${m.tri[i + 2]}"/>`);
+    objs.push(`<object id="${id}" name="${xesc(lf.name || "Bin " + (idx + 1))} (${fmt(b.w)}x${fmt(b.d)}x${fmt(b.h)})" type="model"><mesh><vertices>${vs.join("")}</vertices><triangles>${ts.join("")}</triangles></mesh></object>`);
+    items.push(`<item objectid="${id}" transform="1 0 0 0 1 0 0 0 1 ${fmt(b.x)} ${fmt(b.y)} 0"/>`);
+    id++;
+  });
+  if (!objs.length) return { blob: null, skipped };
+  const model = `<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><metadata name="Application">Drawer Bin Maker</metadata><resources>${objs.join("")}</resources><build>${items.join("")}</build></model>`;
+  const blob = makeZip([
+    { name: "[Content_Types].xml", data: `<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>` },
+    { name: "_rels/.rels", data: `<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>` },
+    { name: "3D/3dmodel.model", data: model }
+  ]);
+  return { blob, skipped, count: objs.length };
+}
+
+const dlReady = inClaude ? window.claude.use("downloads").catch(() => null) : Promise.resolve(null);
+
+$("exportBtn").onclick = async () => {
+  const r = build3MF();
+  if (!r.blob) { toast(L.leaves.length ? "Nothing to export. Every bin is too small for the wall thickness." : "There are no bins to export yet."); return; }
+  const done = `Exported ${r.count} ${plural(r.count, "bin", "bins")}` + (r.skipped ? `, skipped ${r.skipped} too small to print.` : ".");
+  const base = slug(store.saves[store.current].name);
+  const zipped = inClaude && await dlReady;
+  const data = zipped ? makeZip([{ name: base + ".3mf", data: new Uint8Array(await r.blob.arrayBuffer()) }]) : r.blob;
+  const res = await offerFile(base + (zipped ? ".zip" : ".3mf"), data);
+  if (res === "saved") toast(done);
+  else if (res === "declined") toast("Export cancelled.");
+  else toast("Saving files isn't available here. Host the page yourself to export.");
+};
+
+// ---------- 3D view ----------
+let three = null;
+function loadThree() {
+  if (window.THREE) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
+    s.onload = res; s.onerror = rej; document.head.appendChild(s);
+  });
+}
+function setTab(is3d) {
+  $("tab2d").setAttribute("aria-pressed", String(!is3d));
+  $("tab3d").setAttribute("aria-pressed", String(is3d));
+  $("view2d").hidden = is3d; $("view3d").hidden = !is3d;
+  $("tool").hidden = is3d;
+  if (is3d) loadThree().then(() => { $("msg3d").hidden = true; build3D(); })
+    .catch(() => { $("msg3d").textContent = "The 3D view couldn't load. Check your connection and try again."; });
+  else render2D();
+}
+$("tab2d").onclick = () => setTab(false);
+$("tab3d").onclick = () => setTab(true);
+
+function init3D() {
+  const T = window.THREE, box = $("view3d");
+  const renderer = new T.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  box.prepend(renderer.domElement);
+  const scene = new T.Scene(), camera = new T.PerspectiveCamera(40, 1, 1, 20000);
+  camera.up.set(0, 0, 1);
+  scene.add(new T.HemisphereLight(0xffffff, 0x445544, 0.75));
+  const sun = new T.DirectionalLight(0xffffff, 0.75); sun.position.set(-0.6, -1, 1.6); scene.add(sun);
+  const group = new T.Group(); scene.add(group);
+  const o = { theta: -1.15, phi: 0.95, dist: 600, target: new T.Vector3() };
+  const draw = () => {
+    const w = box.clientWidth, h = box.clientHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    camera.position.set(o.target.x + o.dist * Math.sin(o.phi) * Math.cos(o.theta), o.target.y + o.dist * Math.sin(o.phi) * Math.sin(o.theta), o.target.z + o.dist * Math.cos(o.phi));
+    camera.lookAt(o.target); renderer.render(scene, camera);
+  };
+  const ptrs = new Map(); let pinch = 0;
+  const cv = renderer.domElement;
+  cv.addEventListener("pointerdown", e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]); });
+  cv.addEventListener("pointermove", e => {
+    if (!ptrs.has(e.pointerId)) return;
+    const [px, py] = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+    if (ptrs.size === 1) {
+      o.theta -= (e.clientX - px) * 0.008;
+      o.phi = Math.max(0.05, Math.min(1.5, o.phi - (e.clientY - py) * 0.008));
+    } else if (ptrs.size === 2) {
+      const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      if (pinch) o.dist = Math.max(50, Math.min(8000, o.dist * pinch / d));
+      pinch = d;
+    }
+    draw();
+  });
+  const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = 0; };
+  cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
+  cv.addEventListener("wheel", e => { e.preventDefault(); o.dist = Math.max(50, Math.min(8000, o.dist * Math.exp(e.deltaY * 0.001))); draw(); }, { passive: false });
+  new ResizeObserver(() => { if (!box.hidden) draw(); }).observe(box);
+  return { T, renderer, scene, group, o, draw, fitted: null };
+}
+function build3D() {
+  if (!window.THREE) return;
+  if (!three) three = init3D();
+  const { T, group, o, scene } = three;
+  const cs = getComputedStyle(document.documentElement), col = n => new T.Color(cs.getPropertyValue(n).trim());
+  scene.background = col("--mat");
+  group.children.forEach(c => { c.geometry && c.geometry.dispose(); });
+  group.clear();
+  const { W, D, H } = S.p;
+  const mat = new T.MeshStandardMaterial({ color: col("--bin"), roughness: .75, metalness: 0 });
+  const edgeMat = new T.LineBasicMaterial({ color: col("--bin-edge") });
+  layout().leaves.forEach(lf => {
+    const b = binOf(lf); if (!b.ok) return;
+    const m = binMesh(b);
+    let g = new T.BufferGeometry();
+    g.setAttribute("position", new T.Float32BufferAttribute(m.v, 3)); g.setIndex(m.tri);
+    g = g.toNonIndexed(); g.computeVertexNormals();
+    const mesh = new T.Mesh(g, mat); mesh.position.set(b.x, b.y, 0); group.add(mesh);
+    const e = new T.LineSegments(new T.EdgesGeometry(g, 25), edgeMat); e.position.copy(mesh.position); group.add(e);
+  });
+  const outline = new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(W, D, H)), new T.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .35 }));
+  outline.position.set(W / 2, D / 2, H / 2); group.add(outline);
+  const key = `${W}x${D}x${H}`;
+  if (three.fitted !== key) { o.target.set(W / 2, D / 2, 0); o.dist = Math.max(W, D) * 1.6; three.fitted = key; }
+  three.draw();
+}
+
+// ---------- boot ----------
+cleanSel();
+syncParams();
+renderSaves();
+window.addEventListener("resize", () => { if (!$("view2d").hidden) render2D(); });
+requestAnimationFrame(() => update(false));
+})();
+</script>
+</body>
+</html>
