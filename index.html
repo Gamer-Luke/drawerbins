@@ -110,6 +110,9 @@ button.dark:hover:not(:disabled){filter:brightness(1.18);border-color:var(--btn2
 .name-inp:focus::placeholder{color:var(--muted)}
 label.f:has(input:disabled){opacity:.45}
 input:disabled{cursor:not-allowed}
+.check{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
+.check input{width:16px;height:16px;margin:0;accent-color:var(--accent);flex:none}
+#pdfBtn{padding:6px 14px;font-weight:600}
 .status{flex-basis:100%;margin:0;font-size:13px;color:var(--muted)}
 .status.bad{color:var(--warn);background:var(--warn-bg);padding:8px 10px;border-radius:6px}
 .status.good{color:var(--accent)}
@@ -161,6 +164,7 @@ input:disabled{cursor:not-allowed}
         <p class="menu-note">Layouts save automatically in this browser. Download a file to keep a backup, or to move layouts to another device.</p>
       </div>
     </div>
+    <button class="dark" id="pdfBtn" title="Black-and-white plan of the layout to print and place bins by">Export PDF</button>
     <button class="primary export" id="exportBtn">Export 3MF</button>
   </div>
 </header>
@@ -200,6 +204,8 @@ input:disabled{cursor:not-allowed}
         <label class="f">Corner radius<div class="inp"><input id="prad" type="number" inputmode="decimal" step="0.5" min="0"><span>mm</span></div></label>
       </div>
       <p class="note">Clearance is the total gap taken off each bin's width and depth so it drops in easily.</p>
+      <label class="check"><input type="checkbox" id="pdeboss"> Deboss each bin's name on its underside</label>
+      <p class="note" id="debossNote">Mirrored so it reads the right way when you flip the bin over. The inside stays smooth.</p>
       <div id="warnings" class="warn" hidden></div>
     </section>
     <section>
@@ -572,7 +578,115 @@ function ring(x0, y0, x1, y1, rad, segs) {
   }
   return pts;
 }
-function binMesh(b) {
+// ---- debossed name on the underside ----
+const CELL = 0.4; // text pixel size, mm (about one nozzle width)
+const debossDepth = () => Math.min(0.6, S.p.floor / 2);
+function insideRR(px, py, w, h, r, m) {
+  const rr = Math.max(r, m), cx = Math.min(Math.max(px, rr), w - rr), cy = Math.min(Math.max(py, rr), h - rr);
+  return Math.hypot(px - cx, py - cy) <= rr - m + 1e-9;
+}
+// rasterise a label into cells (true = recessed), mirrored in x so it reads correctly from below
+function textGrid(label, b) {
+  if (S.p.deboss === false || !label) return null;
+  const depth = debossDepth();
+  if (depth < 0.3) return null;
+  const t = S.p.wall, aw = b.w - 2 * t - 4, ah = b.d - 2 * t - 4;
+  if (aw < 6 || ah < 5) return null;
+  const cv = textGrid.cv || (textGrid.cv = document.createElement("canvas"));
+  const ctx = cv.getContext("2d", { willReadFrequently: true });
+  const font = px => `bold ${px}px Arial, Helvetica, "Liberation Sans", sans-serif`;
+  ctx.font = font(100);
+  const per = ctx.measureText(label).width / 100;
+  if (!(per > 0)) return null;
+  let fh = Math.min(8, ah * 0.55);
+  if (per * fh > aw) fh = aw / per;
+  if (fh < 3.5) return null;
+  const cols = Math.ceil(per * fh / CELL) + 4, rows = Math.ceil(fh * 1.25 / CELL) + 4;
+  const x0 = b.w / 2 - cols * CELL / 2, y0 = b.d / 2 - rows * CELL / 2;
+  for (const [px, py] of [[x0, y0], [x0 + cols * CELL, y0], [x0, y0 + rows * CELL], [x0 + cols * CELL, y0 + rows * CELL]])
+    if (!insideRR(px, py, b.w, b.d, b.r, 0.8)) return null;
+  cv.width = cols; cv.height = rows;
+  ctx.clearRect(0, 0, cols, rows);
+  ctx.save(); ctx.translate(cols, 0); ctx.scale(-1, 1);
+  ctx.font = font(fh / CELL); ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#000";
+  ctx.fillText(label, cols / 2, rows / 2);
+  ctx.restore();
+  const data = ctx.getImageData(0, 0, cols, rows).data, on = [];
+  let any = false;
+  for (let j = 0; j < rows; j++) {
+    const row = [];
+    for (let i = 0; i < cols; i++) {
+      const v = i >= 2 && j >= 2 && i < cols - 2 && j < rows - 2 && data[((rows - 1 - j) * cols + i) * 4 + 3] > 110;
+      row.push(v); if (v) any = true;
+    }
+    on.push(row);
+  }
+  // pixels that touch only at a corner would make a non-manifold edge: fill one of the gaps
+  for (let changed = true; changed;) {
+    changed = false;
+    for (let j = 0; j < rows - 1; j++) for (let i = 0; i < cols - 1; i++) {
+      const a = on[j][i], b2 = on[j][i + 1], c = on[j + 1][i], d = on[j + 1][i + 1];
+      if (a && d && !b2 && !c) { on[j][i + 1] = true; changed = true; }
+      else if (b2 && c && !a && !d) { on[j][i] = true; changed = true; }
+    }
+  }
+  return any ? { on, cols, rows, depth, x0, y0 } : null;
+}
+// bottom face with the text pocket: zip the outer outline to the text grid's border, then grid cells + pocket walls
+function bottomWithText(v, tri, n, g) {
+  const add = (x, y, z) => { v.push(x, y, z); return v.length / 3 - 1; };
+  const P = i => [v[i * 3], v[i * 3 + 1], v[i * 3 + 2]];
+  const face = (a, b, c, nx, ny, nz) => {
+    const A = P(a), B = P(b), C = P(c);
+    const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2], wx = C[0] - A[0], wy = C[1] - A[1], wz = C[2] - A[2];
+    const d = (uy * wz - uz * wy) * nx + (uz * wx - ux * wz) * ny + (ux * wy - uy * wx) * nz;
+    if (d < 0) tri.push(a, c, b); else tri.push(a, b, c);
+  };
+  const { on, cols, rows, depth, x0, y0 } = g, vg = new Map(), vd = new Map();
+  const G = (i, j) => { const k = i * 4096 + j; if (!vg.has(k)) vg.set(k, add(x0 + i * CELL, y0 + j * CELL, 0)); return vg.get(k); };
+  const Dp = (i, j) => { const k = i * 4096 + j; if (!vd.has(k)) vd.set(k, add(x0 + i * CELL, y0 + j * CELL, depth)); return vd.get(k); };
+  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+    if (!on[j][i]) { face(G(i, j), G(i + 1, j), G(i + 1, j + 1), 0, 0, -1); face(G(i, j), G(i + 1, j + 1), G(i, j + 1), 0, 0, -1); continue; }
+    face(Dp(i, j), Dp(i + 1, j), Dp(i + 1, j + 1), 0, 0, -1); face(Dp(i, j), Dp(i + 1, j + 1), Dp(i, j + 1), 0, 0, -1);
+    if (!on[j][i - 1]) { face(G(i, j), G(i, j + 1), Dp(i, j + 1), 1, 0, 0); face(G(i, j), Dp(i, j + 1), Dp(i, j), 1, 0, 0); }
+    if (!on[j][i + 1]) { face(G(i + 1, j), G(i + 1, j + 1), Dp(i + 1, j + 1), -1, 0, 0); face(G(i + 1, j), Dp(i + 1, j + 1), Dp(i + 1, j), -1, 0, 0); }
+    if (!on[j - 1][i]) { face(G(i, j), G(i + 1, j), Dp(i + 1, j), 0, 1, 0); face(G(i, j), Dp(i + 1, j), Dp(i, j), 0, 1, 0); }
+    if (!on[j + 1][i]) { face(G(i, j + 1), G(i + 1, j + 1), Dp(i + 1, j + 1), 0, -1, 0); face(G(i, j + 1), Dp(i + 1, j + 1), Dp(i, j + 1), 0, -1, 0); }
+  }
+  const H = [];
+  for (let i = 0; i < cols; i++) H.push(G(i, 0));
+  for (let j = 0; j < rows; j++) H.push(G(cols, j));
+  for (let i = cols; i > 0; i--) H.push(G(i, rows));
+  for (let j = rows; j > 0; j--) H.push(G(0, j));
+  // order both outlines by where they land on the text box's border (nearest point, counter-clockwise from its
+  // bottom-left corner); points beyond a corner are ordered by their angle around that corner
+  const X1 = x0 + cols * CELL, Y1 = y0 + rows * CELL, RW = X1 - x0, RH = Y1 - y0, PM = 2 * (RW + RH), e = 1e-3;
+  const param = k => {
+    const px = v[k * 3], py = v[k * 3 + 1];
+    const qx = Math.min(Math.max(px, x0), X1), qy = Math.max(Math.min(py, Y1), y0);
+    let t;
+    if (qy === y0 && qx > x0 && qx < X1) t = qx - x0;
+    else if (qx === X1 && qy > y0 && qy < Y1) t = RW + (qy - y0);
+    else if (qy === Y1 && qx > x0 && qx < X1) t = RW + RH + (X1 - qx);
+    else if (qx === x0 && qy > y0 && qy < Y1) t = 2 * RW + RH + (Y1 - qy);
+    else {
+      const corners = [[x0, y0, 0, Math.PI], [X1, y0, RW, 1.5 * Math.PI], [X1, Y1, RW + RH, 0], [x0, Y1, 2 * RW + RH, 0.5 * Math.PI]];
+      const c = corners.find(([a, b2]) => Math.abs(qx - a) < 1e-9 && Math.abs(qy - b2) < 1e-9) || corners[0];
+      if (px === c[0] && py === c[1]) t = c[2];
+      else { let a = Math.atan2(py - c[1], px - c[0]) - c[3]; a = ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI); t = c[2] + e * (Math.min(a, Math.PI / 2) / (Math.PI / 2) - 0.5); }
+    }
+    return ((t % PM) + PM) % PM;
+  };
+  const Os = Array.from({ length: n }, (_, k) => k).sort((a, b) => param(a) - param(b)), Hs = H.sort((a, b) => param(a) - param(b));
+  const aO = Os.map(param).concat(param(Os[0]) + PM), aH = Hs.map(param).concat(param(Hs[0]) + PM);
+  const nO = Os.length, nH = Hs.length;
+  let i = 0, j = 0;
+  while (i < nO || j < nH) {
+    if (j >= nH || (i < nO && aO[i + 1] <= aH[j + 1])) { face(Os[i], Os[(i + 1) % nO], Hs[j % nH], 0, 0, -1); i++; }
+    else { face(Os[i % nO], Hs[(j + 1) % nH], Hs[j % nH], 0, 0, -1); j++; }
+  }
+}
+function binMesh(b, label) {
   const t = S.p.wall, f = S.p.floor, h = b.h;
   const ri = innerRadius(b), segs = b.r > 0 ? 8 : 0;
   const O = ring(0, 0, b.w, b.d, b.r, segs), I = ring(t, t, b.w - t, b.d - t, ri, segs), n = O.length;
@@ -581,8 +695,9 @@ function binMesh(b) {
   O.forEach(([x, y]) => v.push(x, y, h));
   I.forEach(([x, y]) => v.push(x, y, h));
   I.forEach(([x, y]) => v.push(x, y, f));
-  const tri = [];
-  for (let i = 1; i < n - 1; i++) tri.push(0, i + 1, i);
+  const tri = [], g = label ? textGrid(label, b) : null;
+  if (g) bottomWithText(v, tri, n, g);
+  else for (let i = 1; i < n - 1; i++) tri.push(0, i + 1, i);
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
     tri.push(i, j, n + j, i, n + j, n + i);
@@ -590,7 +705,7 @@ function binMesh(b) {
     tri.push(3 * n + i, 2 * n + j, 3 * n + j, 3 * n + i, 2 * n + i, 2 * n + j);
   }
   for (let i = 1; i < n - 1; i++) tri.push(3 * n, 3 * n + i, 3 * n + i + 1);
-  return { v, tri };
+  return { v, tri, text: !!g };
 }
 
 // ---------- 2D view ----------
@@ -1040,7 +1155,14 @@ function setMode(m) {
 
 // ---------- panels ----------
 const PARAMS = [["pW", "W", 20], ["pD", "D", 20], ["pH", "H", 5], ["pbh", "bh", 3], ["pwall", "wall", .4], ["pfloor", "floor", .4], ["pclr", "clr", 0], ["prad", "rad", 0]];
-function syncParams() { PARAMS.forEach(([id, k]) => $(id).value = S.p[k]); }
+function syncParams() { PARAMS.forEach(([id, k]) => $(id).value = S.p[k]); $("pdeboss").checked = S.p.deboss !== false; syncDeboss(); }
+function syncDeboss() {
+  const on = S.p.deboss !== false, ok = debossDepth() >= 0.3;
+  $("debossNote").textContent = !on ? "Names are only shown on screen and in the PDF."
+    : ok ? `Mirrored so it reads the right way when you flip the bin over, ${fmt(debossDepth())} mm deep. The inside stays smooth.`
+    : "The floor is too thin for a name. Use a floor of at least 0.6 mm.";
+}
+$("pdeboss").addEventListener("change", e => { snap(); S.p.deboss = e.target.checked; syncDeboss(); update(); });
 PARAMS.forEach(([id, k, min]) => $(id).addEventListener("change", e => {
   const v = parseFloat(e.target.value);
   if (!(v >= min)) { e.target.value = S.p[k]; toast(`Enter a number of at least ${min} mm.`); return; }
@@ -1049,7 +1171,7 @@ PARAMS.forEach(([id, k, min]) => $(id).addEventListener("change", e => {
     const reach = Math.max(...S.rects.map(r => k === "W" ? r.x + r.w : r.y + r.h));
     if (v < reach - EPS) { e.target.value = S.p[k]; toast(`Bins reach ${fmt1(reach)} mm. Move or delete them before making the drawer smaller.`, 5000); return; }
   }
-  snap(); S.p[k] = v; update();
+  snap(); S.p[k] = v; syncDeboss(); update();
 }));
 
 function renderTool() {
@@ -1392,11 +1514,12 @@ function makeZip(files) {
 function build3MF() {
   L = layout();
   const objs = [], items = [];
-  let skipped = 0, id = 1;
+  let skipped = 0, id = 1, named = 0;
   L.leaves.forEach((lf, idx) => {
     const b = binOf(lf);
     if (!b.ok) { skipped++; return; }
-    const m = binMesh(b), vs = [], ts = [];
+    const m = binMesh(b, lf.name || "Bin " + (idx + 1)), vs = [], ts = [];
+    if (m.text) named++;
     for (let i = 0; i < m.v.length; i += 3) vs.push(`<vertex x="${fmt(m.v[i])}" y="${fmt(m.v[i + 1])}" z="${fmt(m.v[i + 2])}"/>`);
     for (let i = 0; i < m.tri.length; i += 3) ts.push(`<triangle v1="${m.tri[i]}" v2="${m.tri[i + 1]}" v3="${m.tri[i + 2]}"/>`);
     objs.push(`<object id="${id}" name="${xesc(lf.name || "Bin " + (idx + 1))} (${fmt(b.w)}x${fmt(b.d)}x${fmt(b.h)})" type="model"><mesh><vertices>${vs.join("")}</vertices><triangles>${ts.join("")}</triangles></mesh></object>`);
@@ -1410,7 +1533,7 @@ function build3MF() {
     { name: "_rels/.rels", data: `<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>` },
     { name: "3D/3dmodel.model", data: model }
   ]);
-  return { blob, skipped, count: objs.length };
+  return { blob, skipped, count: objs.length, named };
 }
 
 const dlReady = inClaude ? window.claude.use("downloads").catch(() => null) : Promise.resolve(null);
@@ -1418,7 +1541,8 @@ const dlReady = inClaude ? window.claude.use("downloads").catch(() => null) : Pr
 $("exportBtn").onclick = async () => {
   const r = build3MF();
   if (!r.blob) { toast(L.leaves.length ? "Nothing to export. Every bin is too small for the wall thickness." : "There are no bins to export yet."); return; }
-  const done = `Exported ${r.count} ${plural(r.count, "bin", "bins")}` + (r.skipped ? `, skipped ${r.skipped} too small to print.` : ".");
+  let done = `Exported ${r.count} ${plural(r.count, "bin", "bins")}` + (r.skipped ? `, skipped ${r.skipped} too small to print.` : ".");
+  if (S.p.deboss !== false && r.named < r.count) done += ` ${r.count - r.named} ${plural(r.count - r.named, "bin is", "bins are")} too small for a name underneath.`;
   const base = slug(store.saves[store.current].name);
   const zipped = inClaude && await dlReady;
   const data = zipped ? makeZip([{ name: base + ".3mf", data: new Uint8Array(await r.blob.arrayBuffer()) }]) : r.blob;
@@ -1426,6 +1550,119 @@ $("exportBtn").onclick = async () => {
   if (res === "saved") toast(done);
   else if (res === "declined") toast("Export cancelled.");
   else toast("Saving files isn't available here. Host the page yourself to export.");
+};
+
+// ---------- printable PDF plan ----------
+const WINANSI = { "€": "\x80", "…": "\x85", "‘": "\x91", "’": "\x92", "“": "\x93", "”": "\x94", "•": "\x95", "–": "\x96", "—": "\x97" };
+function pdfStr(s) {
+  let out = "";
+  for (const ch of String(s)) {
+    const c = ch.codePointAt(0);
+    let o = (c >= 32 && c < 127) || (c >= 160 && c <= 255) ? ch : WINANSI[ch] || "?";
+    if (o === "(" || o === ")" || o === "\\") o = "\\" + o;
+    out += o;
+  }
+  return out;
+}
+const mctx = document.createElement("canvas").getContext("2d");
+function textW(s, size, bold) { mctx.font = `${bold ? "bold " : ""}100px Helvetica, Arial, "Liberation Sans", sans-serif`; return mctx.measureText(s).width / 100 * size; }
+function makePDF(pw, ph, content, title) {
+  const objs = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>`,
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+    `<< /Title (${pdfStr(title)}) /Creator (Drawer Bin Maker) >>`
+  ];
+  let out = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n";
+  const offs = [];
+  objs.forEach((o, i) => { offs.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offs.map(o => String(o).padStart(10, "0") + " 00000 n \n").join("")
+    + `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R /Info 7 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  const bytes = new Uint8Array(out.length);
+  for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
+  return bytes;
+}
+function buildPDF() {
+  L = layout();
+  const { W, D } = S.p, k = 72 / 25.4, land = W > D * 1.05;
+  const pw = land ? 841.89 : 595.28, ph = land ? 595.28 : 841.89, m = 34, head = 62, foot = 62;
+  const aw = pw - 2 * m, ah = ph - 2 * m - head - foot;
+  const actual = W * k <= aw && D * k <= ah, s = actual ? k : Math.min(aw / W, ah / D);
+  const ox = m + (aw - W * s) / 2, oy = m + foot + (ah - D * s) / 2;
+  const f = v => String(Math.round(v * 100) / 100);
+  let c = "0 G 0 g 1 J 1 j\n";
+  const text = (str, x, y, size, bold, align) => {
+    const w = textW(str, size, bold), xx = align === "c" ? x - w / 2 : align === "r" ? x - w : x;
+    c += `BT /${bold ? "F2" : "F1"} ${f(size)} Tf ${f(xx)} ${f(y)} Td (${pdfStr(str)}) Tj ET\n`;
+  };
+  const line = (x1, y1, x2, y2, w) => { c += `${f(w)} w ${f(x1)} ${f(y1)} m ${f(x2)} ${f(y2)} l S\n`; };
+  const rrect = (x, y, w, h, r) => {
+    const q = 0.5523 * r;
+    c += r <= 0.01 ? `${f(x)} ${f(y)} ${f(w)} ${f(h)} re S\n`
+      : `${f(x + r)} ${f(y)} m ${f(x + w - r)} ${f(y)} l ${f(x + w - r + q)} ${f(y)} ${f(x + w)} ${f(y + r - q)} ${f(x + w)} ${f(y + r)} c `
+      + `${f(x + w)} ${f(y + h - r)} l ${f(x + w)} ${f(y + h - r + q)} ${f(x + w - r + q)} ${f(y + h)} ${f(x + w - r)} ${f(y + h)} c `
+      + `${f(x + r)} ${f(y + h)} l ${f(x + r - q)} ${f(y + h)} ${f(x)} ${f(y + h - r + q)} ${f(x)} ${f(y + h - r)} c `
+      + `${f(x)} ${f(y + r)} l ${f(x)} ${f(y + r - q)} ${f(x + r - q)} ${f(y)} ${f(x + r)} ${f(y)} c h S\n`;
+  };
+  const name = store.saves[store.current].name, nb = L.leaves.length;
+  text(name, m, ph - m - 14, 16, true);
+  text(`Drawer ${fmt(W)} × ${fmt(D)} mm (inside) · ${nb} ${plural(nb, "bin", "bins")} · ${fmt(S.p.bh)} mm tall · sizes are outside width × depth`, m, ph - m - 31, 9.5, false);
+  text(actual ? "Actual size. Print at 100% with \"fit to page\" turned off, then check the 100 mm line."
+    : `Scaled to fit the page (1:${(k / s).toFixed(2)}), so not actual size. Use it as a placement guide.`, m, ph - m - 45, 9.5, false);
+  c += `${f(1.8)} w ${f(ox)} ${f(oy)} ${f(W * s)} ${f(D * s)} re S\n0.8 w\n`;
+  const legend = [];
+  L.leaves.forEach((lf, idx) => {
+    const b = binOf(lf);
+    if (b.w <= 0 || b.d <= 0) return;
+    const x = ox + b.x * s, y = oy + b.y * s, w = b.w * s, h = b.d * s;
+    rrect(x, y, w, h, Math.min(b.r * s, w / 2, h / 2));
+    const label = lf.name || "Bin " + (idx + 1), size = `${fmt(b.w)} × ${fmt(b.d)}`, cx = x + w / 2, cy = y + h / 2;
+    let fs = Math.min(11, h * 0.3);
+    while (fs >= 5 && textW(label, fs, true) > w - 6) fs -= 0.5;
+    const ss = Math.min(8, fs * 0.8);
+    if (fs >= 5 && h >= fs * 2.8 && textW(size, ss, false) <= w - 6) { text(label, cx, cy + 1.5, fs, true, "c"); text(size, cx, cy - ss - 0.5, ss, false, "c"); }
+    else if (fs >= 5 && h >= fs + 4) text(label, cx, cy - fs * 0.35, fs, true, "c");
+    else {
+      const ns = Math.max(4, Math.min(9, h * 0.6, w * 0.6));
+      text(String(idx + 1), cx, cy - ns * 0.35, ns, true, "c");
+      legend.push(`${idx + 1} = ${label} (${size})`);
+    }
+  });
+  text("FRONT", ox + W * s / 2, oy - 15, 9, true, "c");
+  line(ox + W * s / 2 - 40, oy - 5, ox + W * s / 2 + 40, oy - 5, 0.8);
+  const by = m + 8;
+  if (actual) {
+    const len = 100 * k;
+    line(m, by, m + len, by, 0.8); line(m, by - 4, m, by + 4, 0.8); line(m + len, by - 4, m + len, by + 4, 0.8);
+    text("This line should measure 100 mm", m + len + 8, by - 3, 8, false);
+  } else {
+    const len = 50 * s;
+    line(m, by, m + len, by, 0.8); line(m, by - 4, m, by + 4, 0.8); line(m + len, by - 4, m + len, by + 4, 0.8);
+    text("50 mm", m + len + 6, by - 3, 8, false);
+  }
+  text(`Drawer Bin Maker · ${new Date().toLocaleDateString()}`, pw - m, by - 18, 7.5, false, "r");
+  if (legend.length) {
+    const lines = [""];
+    legend.forEach(item => {
+      const cur = lines[lines.length - 1], next = cur ? cur + "   " + item : "Small bins: " + item;
+      if (textW(next, 8, false) <= aw || !cur) lines[lines.length - 1] = next; else lines.push(item);
+    });
+    if (lines.length > 2) { lines.length = 2; lines[1] += " …"; }
+    lines.forEach((l, i) => text(l, m, by + 32 - i * 11, 8, false));
+  }
+  return makePDF(pw, ph, c, name);
+}
+$("pdfBtn").onclick = async () => {
+  L = layout();
+  if (!L.leaves.length) { toast("There are no bins to put in the PDF yet."); return; }
+  const res = await offerFile(slug(store.saves[store.current].name) + "-plan.pdf", buildPDF(), "application/pdf");
+  if (res === "saved") toast("Downloaded the layout PDF.");
+  else if (res === "declined") toast("Download cancelled.");
+  else toast("Downloading isn't available here. Host the page yourself to download files.");
 };
 
 // ---------- 3D view ----------
@@ -1500,9 +1737,9 @@ function build3D() {
   const { W, D, H } = S.p;
   const mat = new T.MeshStandardMaterial({ color: col("--bin"), roughness: .75, metalness: 0 });
   const edgeMat = new T.LineBasicMaterial({ color: col("--bin-edge") });
-  layout().leaves.forEach(lf => {
+  layout().leaves.forEach((lf, idx) => {
     const b = binOf(lf); if (!b.ok) return;
-    const m = binMesh(b);
+    const m = binMesh(b, lf.name || "Bin " + (idx + 1));
     let g = new T.BufferGeometry();
     g.setAttribute("position", new T.Float32BufferAttribute(m.v, 3)); g.setIndex(m.tri);
     g = g.toNonIndexed(); g.computeVertexNormals();
