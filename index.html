@@ -12,7 +12,7 @@
   --bg:#e9ede9; --panel:#f8faf8; --ink:#16201b; --muted:#56655d; --line:#cdd7d1;
   --mat:#2c5a47; --mat-minor:rgba(255,255,255,.10); --mat-major:rgba(255,255,255,.24);
   --bin:#f2eee2; --bin-edge:#a59c84; --pocket:#e2dccb; --bin-ink:#2a2a22;
-  --sel:#f4a300; --accent:#1d6a50; --accent-ink:#ffffff; --warn:#a4400f; --warn-bg:#fbe9dc; --clash:#ff7043; --btn2:#2e3b35; --btn2-ink:#eef3f0;
+  --sel:#f4a300; --accent:#1d6a50; --accent-ink:#ffffff; --warn:#a4400f; --warn-bg:#fbe9dc; --clash:#ff7043; --pill:#b23a16; --pill-ink:#ffffff; --btn2:#2e3b35; --btn2-ink:#eef3f0;
   --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
   --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -90,7 +90,7 @@ button.dark:hover:not(:disabled){filter:brightness(1.18);border-color:var(--btn2
 .seg button{border:0;min-height:30px;padding:4px 14px;background:transparent;font-family:var(--display);font-weight:600;letter-spacing:.06em;text-transform:uppercase}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .view{position:relative;background:var(--mat);border-radius:10px;padding:14px 14px 30px;display:flex;justify-content:center}
-.view svg{display:block;width:100%;max-height:66vh;touch-action:none;user-select:none;-webkit-user-select:none}
+.view svg{overflow:visible;display:block;width:100%;max-height:66vh;touch-action:none;user-select:none;-webkit-user-select:none}
 .front{position:absolute;left:0;right:0;bottom:7px;text-align:center;font-family:var(--display);font-weight:600;letter-spacing:.3em;font-size:12px;color:rgba(255,255,255,.65)}
 #view3d{height:min(66vh,560px);padding:0;overflow:hidden;cursor:grab;touch-action:none}
 #view3d canvas{display:block;width:100%;height:100%}
@@ -110,9 +110,19 @@ button.dark:hover:not(:disabled){filter:brightness(1.18);border-color:var(--btn2
 .name-inp:focus::placeholder{color:var(--muted)}
 label.f:has(input:disabled){opacity:.45}
 input:disabled{cursor:not-allowed}
+.tipped{position:relative}
+.tip-btn{display:flex}
+.tip.tip-r{left:auto;right:0;width:250px}
+.mat-alert{background:var(--warn-bg);color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 35%,transparent);border-radius:8px;padding:8px 12px;font-size:13px}
+.tipped .i{display:inline-grid;place-items:center;width:13px;height:13px;line-height:1;border-radius:50%;border:1px solid var(--muted);font:600 9px/1 var(--body);color:var(--muted);margin-left:2px;vertical-align:1px}
+.tip{position:absolute;left:0;top:calc(100% + 6px);z-index:15;width:220px;max-width:calc(100vw - 48px);background:var(--ink);color:var(--bg);font-size:12px;line-height:1.4;padding:8px 10px;border-radius:6px;
+  box-shadow:0 8px 20px rgba(0,0,0,.2);opacity:0;visibility:hidden;pointer-events:none}
+.tipped:hover .tip,.tipped:focus-within .tip{opacity:1;visibility:visible}
+@media (prefers-reduced-motion:no-preference){.tip{transition:opacity .12s,visibility .12s}}
+#bedNote.warn{margin:0}
 .check{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
 .check input{width:16px;height:16px;margin:0;accent-color:var(--accent);flex:none}
-#pdfBtn{padding:6px 14px;font-weight:600}
+#pdfBtn,#plateBtn{padding:6px 14px;font-weight:600}
 .status{flex-basis:100%;margin:0;font-size:13px;color:var(--muted)}
 .status.bad{color:var(--warn);background:var(--warn-bg);padding:8px 10px;border-radius:6px}
 .status.good{color:var(--accent)}
@@ -136,9 +146,11 @@ input:disabled{cursor:not-allowed}
 </head>
 <body>
 
+<!-- TOP BAR: title, Layout menu, export buttons -->
 <header class="top">
   <h1>Drawer Bin Maker<small>Plan bins for a drawer, then export every bin in one 3MF file.</small></h1>
   <div class="top-actions">
+    <!-- LAYOUT MENU -->
     <div class="saves">
       <button class="dark save-btn" id="saveBtn" aria-haspopup="true" aria-expanded="false" aria-controls="saveMenu">
         <span class="lbl">Layout</span><span id="saveName">My drawer</span>
@@ -165,11 +177,16 @@ input:disabled{cursor:not-allowed}
       </div>
     </div>
     <button class="dark" id="pdfBtn" title="Black-and-white plan of the layout to print and place bins by">Export PDF</button>
+    <div class="tipped tip-btn">
+      <button class="dark" id="plateBtn" aria-describedby="plateTip">Export plates</button>
+      <span class="tip tip-r" id="plateTip" role="tooltip">Groups the bins onto as few print beds as possible, using the bed size in the settings panel. Downloads a zip with one .3mf file per plate.</span>
+    </div>
     <button class="primary export" id="exportBtn">Export 3MF</button>
   </div>
 </header>
 
 <div class="app">
+  <!-- SETTINGS PANEL: view switch, editing mode, drawer, bins, printer bed, history, parts list -->
   <aside class="panel">
     <section>
       <div class="seg full" role="group" aria-label="View">
@@ -200,13 +217,19 @@ input:disabled{cursor:not-allowed}
         <label class="f">Bin height<div class="inp"><input id="pbh" type="number" inputmode="decimal" step="1" min="3"><span>mm</span></div></label>
         <label class="f">Wall thickness<div class="inp"><input id="pwall" type="number" inputmode="decimal" step="0.1" min="0.4"><span>mm</span></div></label>
         <label class="f">Floor thickness<div class="inp"><input id="pfloor" type="number" inputmode="decimal" step="0.1" min="0.4"><span>mm</span></div></label>
-        <label class="f">Clearance<div class="inp"><input id="pclr" type="number" inputmode="decimal" step="0.1" min="0"><span>mm</span></div></label>
+        <label class="f tipped"><span>Clearance <span class="i" aria-hidden="true">i</span></span><div class="inp"><input id="pclr" type="number" inputmode="decimal" step="0.1" min="0" aria-describedby="clrTip"><span>mm</span></div>
+          <span class="tip" id="clrTip" role="tooltip">The total gap taken off each bin's width and depth, so the bins drop into the drawer easily.</span></label>
         <label class="f">Corner radius<div class="inp"><input id="prad" type="number" inputmode="decimal" step="0.5" min="0"><span>mm</span></div></label>
       </div>
-      <p class="note">Clearance is the total gap taken off each bin's width and depth so it drops in easily.</p>
       <label class="check"><input type="checkbox" id="pdeboss"> Deboss each bin's name on its underside</label>
-      <p class="note" id="debossNote">Mirrored so it reads the right way when you flip the bin over. The inside stays smooth.</p>
-      <div id="warnings" class="warn" hidden></div>
+    </section>
+    <section>
+      <p class="eyebrow">Printer bed</p>
+      <div class="fields">
+        <label class="f">Bed width (X)<div class="inp"><input id="bedX" type="number" inputmode="decimal" step="1" min="50"><span>mm</span></div></label>
+        <label class="f">Bed depth (Y)<div class="inp"><input id="bedY" type="number" inputmode="decimal" step="1" min="50"><span>mm</span></div></label>
+      </div>
+      <p class="note" id="bedNote"></p>
     </section>
     <section>
       <button id="undoBtn" disabled>Undo</button>
@@ -220,8 +243,12 @@ input:disabled{cursor:not-allowed}
   </aside>
 
   <div class="stage">
+    <!-- MAT BANNER: warnings that affect the whole layout -->
+    <div class="mat-alert" id="warnings" role="status" hidden></div>
+    <!-- MAT: the green layout canvas (and the 3D view in the same spot) -->
     <div class="view" id="view2d"><svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg><div class="front">FRONT</div></div>
     <div class="view" id="view3d" hidden><div class="msg" id="msg3d">Loading 3D view…</div><div class="hint3d">Drag to rotate · scroll or pinch to zoom</div></div>
+    <!-- INSPECTOR: properties and actions for the selected bins; HINT LINE at its bottom -->
     <div class="tool" id="tool">
       <div class="who">
         <input id="selName" class="name-inp" type="text" maxlength="40" autocomplete="off" spellcheck="false" aria-label="Bin name" title="Click to rename this bin">
@@ -327,6 +354,7 @@ function loadStore() {
   return { current: id, saves: { [id]: { name: "My drawer", state: first || defaults(), updated: Date.now() } } };
 }
 let store = loadStore();
+if (!store.printer || !num(store.printer.x) || !num(store.printer.y) || store.printer.x < 50 || store.printer.y < 50) store.printer = { x: 220, y: 220 };
 function saveStore() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
 function save() { const cur = store.saves[store.current]; cur.state = S; cur.updated = Date.now(); saveStore(); }
 function pushHist(str) { history.push(str); if (history.length > 80) history.shift(); $("undoBtn").disabled = false; }
@@ -744,10 +772,11 @@ function render2D() {
   L.leaves.forEach((lf, idx) => {
     const b = binOf(lf), g = el("g", { "data-id": lf.id, style: `cursor:${free() ? "move" : "pointer"}` }, svg);
     el("rect", { x: lf.x, y: fy(lf.y, lf.h), width: lf.w, height: lf.h, fill: "transparent" }, g);
-    const isSel = sel.includes(lf.id);
+    const isSel = sel.includes(lf.id), big = b.ok && !fitsBed(b);
     if (b.w > 0 && b.d > 0) {
       el("rect", { x: b.x, y: fy(b.y, b.d), width: b.w, height: b.d, rx: b.r, fill: b.ok ? col("--bin") : col("--warn-bg"),
-        stroke: isSel ? col("--sel") : col("--bin-edge"), "stroke-width": isSel ? 3 : 1, "vector-effect": "non-scaling-stroke" }, g);
+        stroke: isSel ? col("--sel") : big ? col("--clash") : col("--bin-edge"), "stroke-width": isSel || big ? 3 : 1, "vector-effect": "non-scaling-stroke",
+        ...(big && !isSel ? { "stroke-dasharray": "6 4" } : {}) }, g);
       if (b.ok) {
         const ri = innerRadius(b);
         el("rect", { x: b.x + t, y: fy(b.y + t, b.d - 2 * t), width: b.w - 2 * t, height: b.d - 2 * t, rx: ri,
@@ -764,30 +793,55 @@ function render2D() {
     const fit = (s, px, k) => { const max = Math.max(3, Math.floor((pxW - 10) / (px * k))); return s.length > max ? s.slice(0, max - 1) + "…" : s; };
     const label = lf.name || "Bin " + (idx + 1);
     const outer = `${fmt(b.w)} × ${fmt(b.d)}`, inner = `(${fmt(b.w - 2 * t)} × ${fmt(b.d - 2 * t)})`;
-    if (b.ok && pxW > 84 && pxH > 60) {
-      txt(fit(label, 14, .5), -10, 14, "lbl-n");
-      txt(outer, 5, 11, "lbl-d", .8);
-      txt(inner, 19, 10.5, "lbl-d", .55);
+    const prob = !b.ok ? ["Too small to print", "Too small"] : big ? ["Too big for your bed", "Too big"] : null;
+    const room = !prob || pxH >= 100, shift = prob && room ? 10 : 0;
+    if (!room) { /* the warning takes the space */ }
+    else if (b.ok && pxW > 84 && pxH > 60) {
+      txt(fit(label, 14, .5), -10 + shift, 14, "lbl-n");
+      txt(outer, 5 + shift, 11, "lbl-d", .8);
+      txt(inner, 19 + shift, 10.5, "lbl-d", .55);
     } else if (pxW > 70 && pxH > 40) {
-      txt(fit(label, 14, .5), -2, 14, "lbl-n");
-      txt(outer, 13, 11, "lbl-d", .8);
+      txt(fit(label, 14, .5), -2 + shift, 14, "lbl-n");
+      txt(outer, 13 + shift, 11, "lbl-d", .8);
     } else if (pxW > 18 && pxH > 16) {
       txt(String(idx + 1), 4, 12, "lbl-n");
+    }
+    if (prob && pxW > 14 && pxH > 14) {
+      const msg = pxW >= 130 ? prob[0] : pxW >= 62 ? prob[1] : "!", fs = 10.5, ph = 18;
+      const pw = Math.min(pxW - 6, Math.max(ph, msg.length * 6.1 + 14));
+      const top = room ? fy(b.y, b.d) + 8 / scale : cy - ph / 2 / scale;
+      el("rect", { x: cx - pw / 2 / scale, y: top, width: pw / scale, height: ph / scale, rx: ph / 2 / scale, fill: col("--pill") }, g);
+      const e = el("text", { x: cx, y: top + (ph / 2 + 3.7) / scale, "text-anchor": "middle", "font-size": fs / scale, "font-weight": 600, fill: col("--pill-ink") }, g);
+      e.textContent = msg;
+      const tt = el("title", {}, g); tt.textContent = !b.ok ? "Too small for the wall thickness. It will be skipped when exporting."
+        : `${fmt1(b.w)} × ${fmt1(b.d)} mm is bigger than your ${fmt(bed().x)} × ${fmt(bed().y)} mm printer bed, even turned sideways.`;
     }
   });
 
   // merge preview / problem overlay
   if (check && !(drag && drag.moved)) {
-    const ovg = el("g", { "pointer-events": "none" }, svg), s = 7 / scale, bb = check.bb;
+    const ovg = el("g", { "pointer-events": "none" }, svg), s = 7 / scale, bb = check.bb, pad = 4 / scale;
+    const dash = (x, y, w, h, color) => el("rect", { x, y: fy(y, h), width: w, height: h, fill: "none", stroke: color, "stroke-width": 2.5,
+      "stroke-dasharray": "7 5", "vector-effect": "non-scaling-stroke" }, ovg);
+    const seg = (x1, y1, x2, y2) => el("line", { x1, y1: D - y1, x2, y2: D - y2, stroke: col("--clash"), "stroke-width": 3, "stroke-dasharray": "7 5", "vector-effect": "non-scaling-stroke" }, ovg);
+    // the merge outline sits just outside the selected bins so it doesn't cover their highlight
+    const ox0 = bb.x - pad, oy0 = bb.y - pad, ox1 = bb.x1 + pad, oy1 = bb.y1 + pad;
+    dash(ox0, oy0, ox1 - ox0, oy1 - oy0, col("--sel"));
     if (!check.ok) {
       const defs = el("defs", {}, ovg), pat = el("pattern", { id: "hatch", patternUnits: "userSpaceOnUse", width: s, height: s, patternTransform: "rotate(45)" }, defs);
       el("rect", { width: s / 2, height: s, fill: col("--clash"), "fill-opacity": .7 }, pat);
+      const probs = check.partial.map(o => o.r).concat(check.inside.map(o => ({ x: o.l.x, y: o.l.y, w: o.l.w, h: o.l.h })));
       check.partial.forEach(o => el("rect", { x: o.r.x, y: fy(o.r.y, o.r.h), width: o.r.w, height: o.r.h, fill: "url(#hatch)" }, ovg));
-      check.inside.forEach(o => el("rect", { x: o.l.x + 3 / scale, y: fy(o.l.y, o.l.h) + 3 / scale, width: Math.max(0, o.l.w - 6 / scale), height: Math.max(0, o.l.h - 6 / scale),
-        fill: "none", stroke: col("--sel"), "stroke-width": 2.5, "stroke-dasharray": "5 4", "vector-effect": "non-scaling-stroke" }, ovg));
+      probs.forEach(r => {
+        dash(r.x + 3 / scale, r.y + 3 / scale, Math.max(0, r.w - 6 / scale), Math.max(0, r.h - 6 / scale), col("--clash"));
+        // turn the stretch of the outline that runs past this problem red
+        const ya = Math.max(oy0, r.y - pad), yb = Math.min(oy1, r.y + r.h + pad), xa = Math.max(ox0, r.x - pad), xb = Math.min(ox1, r.x + r.w + pad);
+        if (r.x <= bb.x + EPS) seg(ox0, ya, ox0, yb);
+        if (r.x + r.w >= bb.x1 - EPS) seg(ox1, ya, ox1, yb);
+        if (r.y <= bb.y + EPS) seg(xa, oy0, xb, oy0);
+        if (r.y + r.h >= bb.y1 - EPS) seg(xa, oy1, xb, oy1);
+      });
     }
-    el("rect", { x: bb.x, y: fy(bb.y, bb.y1 - bb.y), width: bb.x1 - bb.x, height: bb.y1 - bb.y, fill: "none",
-      stroke: check.ok ? col("--sel") : col("--clash"), "stroke-width": 2, "stroke-dasharray": "7 5", "vector-effect": "non-scaling-stroke" }, ovg);
   }
 
   // split mode: divider handles
@@ -1155,14 +1209,8 @@ function setMode(m) {
 
 // ---------- panels ----------
 const PARAMS = [["pW", "W", 20], ["pD", "D", 20], ["pH", "H", 5], ["pbh", "bh", 3], ["pwall", "wall", .4], ["pfloor", "floor", .4], ["pclr", "clr", 0], ["prad", "rad", 0]];
-function syncParams() { PARAMS.forEach(([id, k]) => $(id).value = S.p[k]); $("pdeboss").checked = S.p.deboss !== false; syncDeboss(); }
-function syncDeboss() {
-  const on = S.p.deboss !== false, ok = debossDepth() >= 0.3;
-  $("debossNote").textContent = !on ? "Names are only shown on screen and in the PDF."
-    : ok ? `Mirrored so it reads the right way when you flip the bin over, ${fmt(debossDepth())} mm deep. The inside stays smooth.`
-    : "The floor is too thin for a name. Use a floor of at least 0.6 mm.";
-}
-$("pdeboss").addEventListener("change", e => { snap(); S.p.deboss = e.target.checked; syncDeboss(); update(); });
+function syncParams() { PARAMS.forEach(([id, k]) => $(id).value = S.p[k]); $("pdeboss").checked = S.p.deboss !== false; }
+$("pdeboss").addEventListener("change", e => { snap(); S.p.deboss = e.target.checked; update(); });
 PARAMS.forEach(([id, k, min]) => $(id).addEventListener("change", e => {
   const v = parseFloat(e.target.value);
   if (!(v >= min)) { e.target.value = S.p[k]; toast(`Enter a number of at least ${min} mm.`); return; }
@@ -1171,7 +1219,7 @@ PARAMS.forEach(([id, k, min]) => $(id).addEventListener("change", e => {
     const reach = Math.max(...S.rects.map(r => k === "W" ? r.x + r.w : r.y + r.h));
     if (v < reach - EPS) { e.target.value = S.p[k]; toast(`Bins reach ${fmt1(reach)} mm. Move or delete them before making the drawer smaller.`, 5000); return; }
   }
-  snap(); S.p[k] = v; syncDeboss(); update();
+  snap(); S.p[k] = v; update();
 }));
 
 function renderTool() {
@@ -1213,7 +1261,10 @@ function renderTool() {
   $("matchD").disabled = !multi || same("h");
   $("matchW").title = multi && same("w") ? "These bins are already the same width" : "";
   $("matchD").title = multi && same("h") ? "These bins are already the same depth" : "";
-  if (!multi) {
+  if (!multi && b.ok && !fitsBed(b)) {
+    st.classList.add("bad");
+    st.textContent = `This bin is ${fmt1(b.w)} × ${fmt1(b.d)} mm, bigger than your ${fmt(bed().x)} × ${fmt(bed().y)} mm printer bed, even turned sideways. Make it smaller or split it.`;
+  } else if (!multi) {
     st.textContent = free() ? "Drag to move. Drag the amber handles to resize. Shift-click to select more. Arrow keys nudge 1 mm."
       : L.leaves.length > 1 ? "Shift-click other bins to merge them or match their sizes." : "Split this bin to start your layout.";
   } else if (!check) {
@@ -1223,6 +1274,71 @@ function renderTool() {
     st.textContent = `Ready to merge into one ${fmt1(check.w)} × ${fmt1(check.d)} mm bin` + (check.fillsGap ? ", including the empty space inside the outline." : ".") + " Press Esc to go back to one bin.";
   } else { st.classList.add("bad"); st.textContent = "Can't merge yet. " + check.why; }
 }
+// ---------- printer bed: fit checks and plate packing ----------
+const PLATE_GAP = 5; // mm between bins on a plate
+const bed = () => store.printer;
+const fitsBed = b => (b.w <= bed().x + EPS && b.d <= bed().y + EPS) || (b.d <= bed().x + EPS && b.w <= bed().y + EPS);
+// MaxRects (best short side fit) with 90° rotation; bins are padded by the gap so neighbours stay apart
+function packPlates(items) {
+  const BW = bed().x + PLATE_GAP, BH = bed().y + PLATE_GAP, plates = [], tooBig = [];
+  const order = items.slice().sort((a, b) => Math.max(b.w, b.d) - Math.max(a.w, a.d) || b.w * b.d - a.w * a.d);
+  const findPos = (free, w, h) => {
+    let best = null;
+    for (const f of free) for (const rot of [false, true]) {
+      const ww = rot ? h : w, hh = rot ? w : h;
+      if (ww > f.w + EPS || hh > f.h + EPS) continue;
+      const sc = Math.min(f.w - ww, f.h - hh), lc = Math.max(f.w - ww, f.h - hh);
+      if (!best || sc < best.sc - EPS || (Math.abs(sc - best.sc) <= EPS && lc < best.lc)) best = { x: f.x, y: f.y, w: ww, h: hh, rot, sc, lc };
+    }
+    return best;
+  };
+  const place = (pl, r, it) => {
+    pl.items.push({ it, x: r.x, y: r.y, rot: r.rot });
+    const next = [];
+    for (const f of pl.free) {
+      if (r.x >= f.x + f.w - EPS || r.x + r.w <= f.x + EPS || r.y >= f.y + f.h - EPS || r.y + r.h <= f.y + EPS) { next.push(f); continue; }
+      if (r.x > f.x + EPS) next.push({ x: f.x, y: f.y, w: r.x - f.x, h: f.h });
+      if (r.x + r.w < f.x + f.w - EPS) next.push({ x: r.x + r.w, y: f.y, w: f.x + f.w - r.x - r.w, h: f.h });
+      if (r.y > f.y + EPS) next.push({ x: f.x, y: f.y, w: f.w, h: r.y - f.y });
+      if (r.y + r.h < f.y + f.h - EPS) next.push({ x: f.x, y: r.y + r.h, w: f.w, h: f.y + f.h - r.y - r.h });
+    }
+    pl.free = next.filter((a, i) => !next.some((c, j) => j !== i && a.x >= c.x - EPS && a.y >= c.y - EPS && a.x + a.w <= c.x + c.w + EPS && a.y + a.h <= c.y + c.h + EPS && (j < i || a.w * a.h < c.w * c.h - EPS)));
+  };
+  for (const it of order) {
+    if (!fitsBed(it)) { tooBig.push(it); continue; }
+    const w = it.w + PLATE_GAP, h = it.d + PLATE_GAP;
+    let done = false;
+    for (const pl of plates) { const pos = findPos(pl.free, w, h); if (pos) { place(pl, pos, it); done = true; break; } }
+    if (!done) {
+      const pl = { free: [{ x: 0, y: 0, w: BW, h: BH }], items: [] };
+      const pos = findPos(pl.free, w, h);
+      if (!pos) { tooBig.push(it); continue; }
+      place(pl, pos, it); plates.push(pl);
+    }
+  }
+  return { plates, tooBig };
+}
+// printable bins as packing items
+function plateItems() {
+  return L.leaves.map((lf, idx) => ({ lf, idx, b: binOf(lf) })).filter(o => o.b.ok).map(o => ({ ...o, w: o.b.w, d: o.b.d }));
+}
+function renderBed() {
+  if (document.activeElement !== $("bedX")) $("bedX").value = bed().x;
+  if (document.activeElement !== $("bedY")) $("bedY").value = bed().y;
+  const items = plateItems(), note = $("bedNote"), btn = $("plateBtn");
+  const { plates, tooBig } = items.length ? packPlates(items) : { plates: [], tooBig: [] }, n = plates.length, fit = items.length - tooBig.length;
+  note.textContent = !items.length ? "Add some bins to see how many plates they need."
+    : !n ? "None of the bins fit on this bed."
+    : `${tooBig.length ? `${fit} of ${items.length}` : fit} ${plural(items.length, "bin fits", "bins fit")} on ${n} ${plural(n, "plate", "plates")}.`;
+  btn.disabled = !n;
+  btn.textContent = n ? `Export ${n} ${plural(n, "plate", "plates")}` : "Export plates";
+}
+["bedX", "bedY"].forEach(id => $(id).addEventListener("change", e => {
+  const v = parseFloat(e.target.value), k = id === "bedX" ? "x" : "y";
+  if (!(v >= 50 && v <= 2000)) { e.target.value = bed()[k]; toast("Enter a bed size between 50 and 2000 mm."); return; }
+  store.printer[k] = v; saveStore(); update(false);
+}));
+
 function renderParts() {
   const groups = new Map();
   let bad = 0;
@@ -1245,8 +1361,9 @@ function renderParts() {
   const w = [];
   if (S.p.bh > S.p.H) w.push(`Bins are ${fmt(S.p.bh)} mm tall but the drawer is only ${fmt(S.p.H)} mm high.`);
   if (S.p.floor >= S.p.bh) w.push("Floor thickness must be less than the bin height.");
-  if (bad) w.push(`${bad} ${plural(bad, "bin is", "bins are")} too small for the wall thickness and will be skipped on export.`);
+  if (S.p.deboss !== false && debossDepth() < 0.3) w.push("The floor is too thin for names underneath. Use a floor of at least 0.6 mm, or turn the names off.");
   $("warnings").hidden = !w.length; $("warnings").textContent = w.join(" ");
+  renderBed();
 }
 const inClaude = !!(window.claude && window.claude.use);
 function renderMode() {
@@ -1511,29 +1628,38 @@ function makeZip(files) {
   e.setUint32(12, cdSize, true); e.setUint32(16, off, true);
   return new Blob([...chunks, ...central, new Uint8Array(e.buffer)]);
 }
-function build3MF() {
-  L = layout();
+// entries: [{ lf, idx, b, x, y, rot }] → 3MF blob. rot turns the bin 90° (its depth runs along X).
+function model3MF(entries) {
   const objs = [], items = [];
-  let skipped = 0, id = 1, named = 0;
-  L.leaves.forEach((lf, idx) => {
-    const b = binOf(lf);
-    if (!b.ok) { skipped++; return; }
-    const m = binMesh(b, lf.name || "Bin " + (idx + 1)), vs = [], ts = [];
+  let named = 0;
+  entries.forEach((e, k) => {
+    const { lf, idx, b } = e, label = lf.name || "Bin " + (idx + 1);
+    const m = binMesh(b, label), vs = [], ts = [];
     if (m.text) named++;
-    for (let i = 0; i < m.v.length; i += 3) vs.push(`<vertex x="${fmt(m.v[i])}" y="${fmt(m.v[i + 1])}" z="${fmt(m.v[i + 2])}"/>`);
+    for (let i = 0; i < m.v.length; i += 3) {
+      const x = e.rot ? b.d - m.v[i + 1] : m.v[i], y = e.rot ? m.v[i] : m.v[i + 1];
+      vs.push(`<vertex x="${fmt(x)}" y="${fmt(y)}" z="${fmt(m.v[i + 2])}"/>`);
+    }
     for (let i = 0; i < m.tri.length; i += 3) ts.push(`<triangle v1="${m.tri[i]}" v2="${m.tri[i + 1]}" v3="${m.tri[i + 2]}"/>`);
-    objs.push(`<object id="${id}" name="${xesc(lf.name || "Bin " + (idx + 1))} (${fmt(b.w)}x${fmt(b.d)}x${fmt(b.h)})" type="model"><mesh><vertices>${vs.join("")}</vertices><triangles>${ts.join("")}</triangles></mesh></object>`);
-    items.push(`<item objectid="${id}" transform="1 0 0 0 1 0 0 0 1 ${fmt(b.x)} ${fmt(b.y)} 0"/>`);
-    id++;
+    objs.push(`<object id="${k + 1}" name="${xesc(label)} (${fmt(b.w)}x${fmt(b.d)}x${fmt(b.h)})" type="model"><mesh><vertices>${vs.join("")}</vertices><triangles>${ts.join("")}</triangles></mesh></object>`);
+    items.push(`<item objectid="${k + 1}" transform="1 0 0 0 1 0 0 0 1 ${fmt(e.x)} ${fmt(e.y)} 0"/>`);
   });
-  if (!objs.length) return { blob: null, skipped };
   const model = `<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><metadata name="Application">Drawer Bin Maker</metadata><resources>${objs.join("")}</resources><build>${items.join("")}</build></model>`;
   const blob = makeZip([
     { name: "[Content_Types].xml", data: `<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>` },
     { name: "_rels/.rels", data: `<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>` },
     { name: "3D/3dmodel.model", data: model }
   ]);
-  return { blob, skipped, count: objs.length, named };
+  return { blob, named };
+}
+function build3MF() {
+  L = layout();
+  const entries = [];
+  let skipped = 0;
+  L.leaves.forEach((lf, idx) => { const b = binOf(lf); if (!b.ok) skipped++; else entries.push({ lf, idx, b, x: b.x, y: b.y, rot: false }); });
+  if (!entries.length) return { blob: null, skipped };
+  const r = model3MF(entries);
+  return { blob: r.blob, skipped, count: entries.length, named: r.named };
 }
 
 const dlReady = inClaude ? window.claude.use("downloads").catch(() => null) : Promise.resolve(null);
@@ -1548,6 +1674,30 @@ $("exportBtn").onclick = async () => {
   const data = zipped ? makeZip([{ name: base + ".3mf", data: new Uint8Array(await r.blob.arrayBuffer()) }]) : r.blob;
   const res = await offerFile(base + (zipped ? ".zip" : ".3mf"), data);
   if (res === "saved") toast(done);
+  else if (res === "declined") toast("Export cancelled.");
+  else toast("Saving files isn't available here. Host the page yourself to export.");
+};
+
+$("plateBtn").onclick = async () => {
+  L = layout();
+  const { plates, tooBig } = packPlates(plateItems());
+  if (!plates.length) { toast("None of the bins fit on your printer bed."); return; }
+  const base = slug(store.saves[store.current].name), n = plates.length, files = [];
+  let named = 0, count = 0;
+  for (let k = 0; k < n; k++) {
+    const pl = plates[k];
+    // centre the group of bins on the bed
+    const ext = pl.items.map(p => ({ x1: p.x + (p.rot ? p.it.d : p.it.w), y1: p.y + (p.rot ? p.it.w : p.it.d) }));
+    const ox = (bed().x - Math.max(...ext.map(e => e.x1))) / 2, oy = (bed().y - Math.max(...ext.map(e => e.y1))) / 2;
+    const r = model3MF(pl.items.map(p => ({ lf: p.it.lf, idx: p.it.idx, b: p.it.b, x: p.x + ox, y: p.y + oy, rot: p.rot })));
+    named += r.named; count += pl.items.length;
+    files.push({ name: `${base}-plate-${k + 1}-of-${n}.3mf`, data: new Uint8Array(await r.blob.arrayBuffer()) });
+  }
+  const res = await offerFile(`${base}-plates.zip`, makeZip(files));
+  let msg = `Exported ${count} ${plural(count, "bin", "bins")} on ${n} ${plural(n, "plate", "plates")}. Unzip to get one .3mf per plate.`;
+  if (tooBig.length) msg += ` Left out ${tooBig.length} too big for the bed.`;
+  if (S.p.deboss !== false && named < count) msg += ` ${count - named} ${plural(count - named, "bin is", "bins are")} too small for a name underneath.`;
+  if (res === "saved") toast(msg, 6000);
   else if (res === "declined") toast("Export cancelled.");
   else toast("Saving files isn't available here. Host the page yourself to export.");
 };
